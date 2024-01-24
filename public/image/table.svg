@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version='1.1' width='400px' height='159px' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>
+	<defs>
+		<linearGradient id="grad0" gradientUnits="userSpaceOnUse" x1="-2.84217e-014" y1="195" x2="400" y2="195">
+		<stop offset="6.66667%" stop-color="#999999"/>
+		<stop offset="26.6667%" stop-color="#666666"/>
+		<stop offset="72.1569%" stop-color="#FFFFFF"/>
+		<stop offset="100%" stop-color="#999999"/>
+		</linearGradient>
+		<linearGradient id="grad1" gradientUnits="userSpaceOnUse"  x2="1" gradientTransform="matrix(109.95 -172.15 25.2 28 160.275 320.225)">
+		<stop offset="0%" stop-color="#B4FFFF"/>
+		<stop offset="72.1569%" stop-color="#FFFFFF"/>
+		<stop offset="100%" stop-color="#B4FFFF"/>
+		</linearGradient>
+		<radialGradient id="grad2" gradientUnits="userSpaceOnUse" cx="0.0" cy="0.0" r=".5" gradientTransform="matrix(411.8 0 0 441.225 200 248.95)">
+		<stop offset="0%" stop-color="#FFCC66"/>
+		<stop offset="100%" stop-color="#FFFFFF"/>
+		</radialGradient>
+	</defs>
+	<g transform="translate(-0,-190)">
+		<path d="M 0 298 L 399.95 298 L 399.95 349 L 0 349 Z" fill="#FFFFCC"/>
+		<path d="M 0 240 L 400 240 L 400 250 L 399.95 250 L 0 250 Z" fill="#666666"/>
+		<path d="M 399.95 298 L 0 298 L 0 288 L 400 288 L 400 298 Z" fill="#999999"/>
+		<path d="M 400 200 L 0 200 L 0 190 L 400 190 Z" fill="url(#grad0)"/>
+		<path d="M 0 200 L 400 200 L 400 240 L 0 240 Z" fill="url(#grad1)"/>
+		<path d="M 0 250 L 399.95 250 L 399.95 280 L 0 280 Z" fill="url(#grad2)"/>
+	</g>
+</svg>
