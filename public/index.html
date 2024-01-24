@@ -6,37 +6,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>「さかなへん」クイズ</title>
 <script type="text/javascript" src="js/jquery.js"></script>
-<script type="text/javascript" src="js/sakana.js"></script>
+<script type="text/javascript" src="js/app.js"></script>
 <script>
 /** さかなへんクイズインスタンス */
-var sakana;
+let sakana;
 
-/**
+  /**
 * 起動時処理
 */
 onload = function() {
-	// consoleが使えないブラウザのおまじない
-	if (typeof window.console != 'object'){
-		window.console = {
-			log:function(){},
-			debug:function(){},
-			info:function(){},
-			warn:function(){},
-			error:function(){},
-			assert:function(){},
-			dir:function(){},
-			dirxml:function(){},
-			trace:function(){},
-			group:function(){},
-			groupEnd:function(){},
-			time:function(){},
-			timeEnd:function(){},
-			profile:function(){},
-			profileEnd:function(){},
-			count:function(){}
-		};
-	}
-
 	// さかなへんクイズ本体
 	sakana = new SakanaHen("id_canvas");
 
@@ -45,7 +23,7 @@ onload = function() {
 	//======================
 	// 縮小
 	$("#btn_zoom_out").click(function(){
-		$("#id_canvas").animate({ 
+		$("#id_canvas").animate({
 			width: "100px",
 			height: "100px",
 			opacity: 0.1
@@ -55,7 +33,7 @@ onload = function() {
 
 	// 通常
 	$("#btn_zoom_normal").click(function(){
-		$("#id_canvas").animate({ 
+		$("#id_canvas").animate({
 			width: "400px",
 			height: "400px",
 			opacity: 1.0
@@ -65,7 +43,7 @@ onload = function() {
 
 	// 拡大
 	$("#btn_zoom_in").click(function(){
-		$("#id_canvas").animate({ 
+		$("#id_canvas").animate({
 			width: "600px",
 			height: "600px",
 			opacity: 1.0
@@ -76,7 +54,7 @@ onload = function() {
 </script>
 <style>
 body {
-  margin:0px;
+  margin: 0;
   /** 長押しコピー禁止 */
   -webkit-user-select: none;
 }
