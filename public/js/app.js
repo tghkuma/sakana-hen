@@ -110,6 +110,8 @@ SakanaHen.prototype.timer_count;
 
 /** クリック処理無名関数退避 */
 SakanaHen.prototype.onClickAnswer;
+/** マウスオーバー処理無名関数退避 */
+SakanaHen.prototype.onMouseMoveAnswerCaller;
 
 /** 魚偏問題リスト */
 SakanaHen.prototype.listQuiz;
@@ -382,11 +384,13 @@ SakanaHen.prototype.startGame = function () {
   if (!this.isSmartPhone()) {
     this.onClickAnswer = (event) => this.onClickAnswerClick(event);
     this.canvas.addEventListener('click', this.onClickAnswer, false);
+    this.onMouseMoveAnswerCaller = (event) => this.onMouseMoveAnswer(event);
+    this.canvas.addEventListener('mousemove', this.onMouseMoveAnswerCaller, false);
   }
   // スマホ
   else {
     this.onClickAnswer = (event) => this.onClickAnswerTouch(event);
-    this.canvas.addEventListener('onClickAnswerTouch', this.onClickAnswer, false);
+    this.canvas.addEventListener('touchstart', this.onClickAnswer, false);
   }
 
   // 初期描画
@@ -416,6 +420,23 @@ SakanaHen.prototype.onClickAnswerTouch = function (event) {
   // console.log("x=" + x + ",y=" + y);
 
   this.checkAnswer(x, y);
+}
+
+/**
+ * 回答クリック
+ */
+SakanaHen.prototype.onMouseMoveAnswer = function (event) {
+  const rect = event.target.getBoundingClientRect();
+  // const x = event.clientX - rect.left;
+  const y = event.clientY - rect.top;
+  // console.log("x=" + x + ",y=" + y);
+
+  let cursor = 'default';
+  const posY = 250;
+  if (this.hitWait <= 0 && posY <= y && y < posY + 50 * this.MAX_ANSWER_NO) {
+    cursor = 'pointer';
+  }
+  this.canvas.style.cursor = cursor;
 }
 
 /**
@@ -633,6 +654,9 @@ SakanaHen.prototype.endGame = function () {
   // 回答クリックイベント削除
   //--------------
   this.canvas.removeEventListener('click', this.onClickAnswer);
+  // マウスカーソルリセット
+  this.canvas.removeEventListener('mousemove', this.onMouseMoveAnswerCaller);
+  this.canvas.style.cursor = 'default';
 
   //======================
   // 結果データ
