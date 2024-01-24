@@ -163,7 +163,7 @@ SakanaHen.prototype.init = function (canvas_id) {
 
   this.ctx = this.canvas.getContext('2d');
 
-  // 仮想座標保持
+  // 仮想座標初期値設定
   this.vHeight = this.canvas.height;
 
   //----------
@@ -433,6 +433,7 @@ SakanaHen.prototype.checkAnswer = function (x, y) {
   // 仮想サイズに補正
   y = y * this.canvas.height / this.vHeight;
 
+
   // 回答判定
   for (let answerNo = 0; answerNo < this.MAX_ANSWER_NO; answerNo++) {
     const posY = 250 + 50 * answerNo;
@@ -553,7 +554,8 @@ SakanaHen.prototype.draw = function () {
   //----------
   // 背景色
   //----------
-  const posX = this.canvas.width - (((this.canvas.width + 120) / this.susi_move_count_org) * this.susi_move_count) + 60;
+  const marginX = 84;
+  const posX = (((this.canvas.width + marginX * 2) / this.susi_move_count_org) * this.susi_move_count) - marginX;
   const posY = 146;
   // 皿
   this.ctx.drawImage(this.img_sara, posX - 24, posY);
