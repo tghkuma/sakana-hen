@@ -169,7 +169,6 @@ SakanaHen.prototype.init = function (canvas_id) {
   //----------
   // 画像ファイルロード
   //----------
-  const self = this;
   this.load_success = true;
   this.load_count = 0;
   this.load_max_count = this.lst_images.length;
@@ -177,14 +176,10 @@ SakanaHen.prototype.init = function (canvas_id) {
   this.ctx.fillText("ロード中:0/" + this.load_max_count, 0, 20);
 
   // 画像ファイルロード
-  for (i = 0; i < this.lst_images.length; i++) {
+  for (let i = 0; i < this.lst_images.length; i++) {
     const image = new Image();
-    image.onload = function (event) {
-      self.onload(event)
-    };
-    image.onerror = function (event) {
-      self.onerror(event)
-    };
+    image.onload = (event) => this.onload(event);
+    image.onerror = (event) => this.onerror(event);
     image.src = this.lst_images[i][1];
     this[this.lst_images[i][0]] = image;
   }
@@ -391,27 +386,20 @@ SakanaHen.prototype.startGame = function () {
   this.hit_wait = 0;
 
   // タイマー設定
-  const self = this;
-  this.timer_id = setInterval(function () {
-    self.timer()
-  }, 1000 / this.frame_rate);
+  this.timer_id = setInterval(() => this.timer(), 1000 / this.frame_rate);
 
   //--------------
   // 回答クリック
   //--------------
   // スマホ以外
   if (!this.isSmartPhone()) {
-    this.click_event_callee = function (event) {
-      self.click(event)
-    };
-    this.canvas.addEventListener('click', this.click_event_callee, false);
+    this.onClickAnswer = (event) => this.onClickAnswerClick(event);
+    this.canvas.addEventListener('click', this.onClickAnswer, false);
   }
   // スマホ
   else {
-    this.click_event_callee = function (event) {
-      self.touchstart(event)
-    };
-    this.canvas.addEventListener('touchstart', this.click_event_callee, false);
+    this.onClickAnswer = (event) => this.onClickAnswerTouch(event);
+    this.canvas.addEventListener('onClickAnswerTouch', this.onClickAnswer, false);
   }
 
   // 初期描画
@@ -422,7 +410,7 @@ SakanaHen.prototype.startGame = function () {
 /**
  * 回答クリック
  */
-SakanaHen.prototype.click = function (event) {
+SakanaHen.prototype.onClickAnswerClick = function (event) {
   const rect = event.target.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
@@ -434,7 +422,7 @@ SakanaHen.prototype.click = function (event) {
 /**
  * 回答クリック(スマホ版)
  */
-SakanaHen.prototype.touchstart = function (event) {
+SakanaHen.prototype.onClickAnswerTouch = function (event) {
   const rect = this.canvas.getBoundingClientRect();
   const x = event.touches[0].pageX - rect.left;
   const y = event.touches[0].pageY - rect.top;
@@ -661,14 +649,7 @@ SakanaHen.prototype.endGame = function () {
   //--------------
   // 回答クリックイベント削除
   //--------------
-  // スマホ以外
-  if (!this.isSmartPhone()) {
-    this.canvas.removeEventListener('click', this.click_event_callee);
-  }
-  // スマホ
-  else {
-    this.canvas.removeEventListener('click', this.click_event_callee);
-  }
+  this.canvas.removeEventListener('click', this.onClickAnswer);
 
   //======================
   // 結果データ
