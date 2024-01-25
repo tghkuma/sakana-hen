@@ -6,6 +6,27 @@
  * @link      https://team-grasshopper.info/
  */
 
+class Log {
+  static debug = false;
+
+  /**
+   * ログ出力
+   *
+   * @param message メッセージ
+   */
+  static info(message) {
+    if (this.debug) {
+      console.log(message);
+    }
+  }
+  static warn(message) {
+    console.warn(message);
+  }
+  static error(message) {
+    console.error(message);
+  }
+}
+
 class SakanaHen {
   /** フレームレート */
   FRAME_RATE = 60;
@@ -20,23 +41,14 @@ class SakanaHen {
   CANVAS_HEIGHT = 400;
 
   /** 汎用フォント */
-  FONT_COMMON = "'ヒラギノ角ゴ Pro W3','Hiragino Kaku Gothic Pro','メイリオ',Meiryo,'ＭＳ Ｐゴシック',sans-serif";
+  FONT_COMMON = "'Helvetica Neue', 'Helvetica', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Arial', 'Yu Gothic', 'Meiryo', sans-serif";
   /** 寿司フォント */
-  FONT_SUSHI = "'平成明朝','Hiragino Kaku Gothic Pro','ＭＳ 明朝',serif";
+  FONT_SUSHI = "'Times New Roman', 'YuMincho', 'Hiragino Mincho ProN', 'Yu Mincho', 'MS PMincho', serif";
 
   /** 問題数 */
   MAX_QUIZ_NO = 10;
   /** 解答選択数 */
   MAX_ANSWER_NO = 3;
-
-  /**
-   * コンストラクタ
-   *
-   * @param canvas_id キャンバスID
-   */
-  constructor(canvas_id) {
-    this.init(canvas_id);
-  }
 
   /**
    * 結果
@@ -48,7 +60,6 @@ class SakanaHen {
     [4, "もう少しです", "s_gameover"],
     [0, "がんばりましょう", "s_gameover"],
   ];
-
 
   /** 画像リスト */
   LST_IMAGES = [
@@ -77,9 +88,6 @@ class SakanaHen {
   /** デバッグ処理 */
   debug = false;
 
-  //======================
-  // 変数
-  //======================
   /** キャンバスID名 */
   canvas_id;
   /** キャンバス関連 */
@@ -134,17 +142,29 @@ class SakanaHen {
   /** 正解数 */
   hitCount;
 
+  /**
+   */
+  /**
+   * コンストラクタ
+   *
+   * @param canvas_id キャンバスID
+   * @param options
+   */
+  constructor(canvas_id, options) {
+    if (options) {
+      Object.assign(this, options)
+    }
+    Log.debug = this.debug;
+    this.init(canvas_id);
+  }
 
-//======================
-// メソッド群
-//======================
   /**
    * クイズ初期化
    *
    * @param canvas_id キャンバスID
    */
   init(canvas_id) {
-    console.log('初期化処理');
+    Log.info('初期化処理');
 
     this.canvas_id = canvas_id;
 
@@ -193,7 +213,7 @@ class SakanaHen {
     } else if (audio.canPlayType("audio/mpeg")) {
       ext = ".mp3";
     }
-    // console.log("音声拡張子:"+ext);
+    // Log.log("音声拡張子:"+ext);
 
     if (ext) {
       this.LST_AUDIOS.forEach((item) => {
@@ -209,9 +229,7 @@ class SakanaHen {
     ++this.load_count;
 
     const strMessage = "ロード成功:" + this.load_count + "/" + this.load_max_count + "[" + event.target.getAttribute("src") + "]";
-    if (this.debug) {
-      console.log(strMessage);
-    }
+    Log.info(strMessage);
     this.ctx.font = "12px " + this.FONT_COMMON;
     this.ctx.fillText(strMessage, 0, 20 + (this.load_count * 12));
 
@@ -229,7 +247,7 @@ class SakanaHen {
     this.load_success = false;
 
     const strMessage = "ロード失敗:" + this.load_count + "/" + this.load_max_count + "[" + event.target.getAttribute("src") + "]";
-    console.warn(strMessage);
+    Log.warn(strMessage);
     this.ctx.font = "12px " + this.FONT_COMMON;
     this.ctx.fillText(strMessage, 0, 20 + (this.load_count * 12));
   }
@@ -313,7 +331,7 @@ class SakanaHen {
     this.listQuiz = [];
     for (let quizNo = 0; quizNo < this.MAX_QUIZ_NO; quizNo++) {
       const answerNo = Math.floor(Math.random() * this.MAX_ANSWER_NO);
-      // console.log("問題" + quizNo + ":" + answerNo);
+      // Log.info("問題" + quizNo + ":" + answerNo);
       const selection = [];
       const [quiz, answer] = lst_sakana_hen.shift();
       for (let selectNo = 0; selectNo < this.MAX_ANSWER_NO; selectNo++) {
@@ -444,7 +462,7 @@ class SakanaHen {
       const posY = 250 + 50 * answerNo;
       if (posY <= y && y < posY + 50) {
         this.clickSelectionNo = answerNo;
-        // console.log("選択=" + this.clickSelectionNo);
+        // Log.info("選択=" + this.clickSelectionNo);
 
         const itemQuiz = this.listQuiz[this.quizNo];
         // あたり/はずれ処理
@@ -713,7 +731,6 @@ class SakanaHen {
       || navigator.userAgent.indexOf('iPad') > 0
       || navigator.userAgent.indexOf('Android') > 0;
   }
-
 
   /**
    * 魚偏データ

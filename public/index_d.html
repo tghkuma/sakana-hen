@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>「さかなへん」クイズ</title>
+<script type="text/javascript" src="js/app.js"></script>
+<script>
+/** さかなへんクイズインスタンス */
+let sakana;
+
+  /**
+* 起動時処理
+*/
+onload = function() {
+	// さかなへんクイズ本体
+	sakana = new SakanaHen("id_canvas", { debug: true });
+
+	//======================
+	// 拡大処理
+	//======================
+  const canvas = document.getElementById("id_canvas");
+	// 通常
+  document.getElementById("btn_zoom_normal").addEventListener('click', () => {
+    canvas.style.width = "400px";
+    canvas.style.height = "400px";
+    sakana.vHeight = 400;
+  });
+
+	// 拡大
+  document.getElementById("btn_zoom_in").addEventListener('click', () => {
+    canvas.style.width = "600px";
+    canvas.style.height = "600px";
+    sakana.vHeight = 600;
+  });
+}
+</script>
+<style>
+body {
+  margin: 0;
+  /** 長押しコピー禁止 */
+  -webkit-user-select: none;
+}
+#id_canvas {
+  background-color: #fff0f0;
+  /** 選択ハイライト禁止 */
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+</style>
+</head>
+<body>
+<header>さかなへんクイズ</header>
+<!-- 描画領域 -->
+<canvas id="id_canvas">
+非対応ブラウザです。
+</canvas>
+<div>
+<input type="button" id="btn_zoom_normal" value="標準" />
+<input type="button" id="btn_zoom_in" value="拡大" />
+</div>
+</body>
+</html>
