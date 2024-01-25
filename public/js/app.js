@@ -156,7 +156,6 @@ SakanaHen.prototype.init = function (canvas_id) {
   if (!this.canvas || !this.canvas.getContext) {
     alert("本ページの閲覧はHTML5対応ブラウザで行ってください");
     return;
-		// return false;
   }
 
   // キャンバスサイズ設定
@@ -272,7 +271,7 @@ SakanaHen.prototype.title = function () {
 
   this.ctx.font = "20px " + this.FONT_COMMON;
   this.ctx.fillStyle = "rgb(255,255,255)";
-  const strStart = "画面クリックでスタート";
+  const strStart = "画面" + (this.isSmartPhone() ? "タップ" : "クリック") + "でスタート";
   tm = this.ctx.measureText(strStart);
   this.ctx.fillText(strStart, (this.canvas.width - tm.width) / 2, posY + 52);
 
@@ -282,10 +281,10 @@ SakanaHen.prototype.title = function () {
   const self = this;
   this.canvas.addEventListener('click', function () {
     self.canvas.removeEventListener('click', arguments.callee, false);
-		// alert("開始");
+    // alert("開始");
     self.startGame();
   }, false);
-	// alert("タイトル");
+  // alert("タイトル");
 }
 
 /**
@@ -312,11 +311,7 @@ SakanaHen.prototype.startGame = function () {
   for (let i = 0; i < 100; i++) {
     const itemNo0 = Math.floor(Math.random() * sakana_length);
     const itemNo1 = Math.floor(Math.random() * sakana_length);
-
-    const item_tmp = [lst_sakana_hen[itemNo0][0], lst_sakana_hen[itemNo0][1]];
-    lst_sakana_hen[itemNo0] =
-      [lst_sakana_hen[itemNo1][0], lst_sakana_hen[itemNo1][1]];
-    lst_sakana_hen[itemNo1] = [item_tmp[0], item_tmp[1]];
+    [lst_sakana_hen[itemNo0], lst_sakana_hen[itemNo1]] = [lst_sakana_hen[itemNo1], lst_sakana_hen[itemNo0]];
   }
   // 問題/回答生成
   this.listQuiz = [];
@@ -405,8 +400,6 @@ SakanaHen.prototype.onClickAnswerClick = function (event) {
   const rect = event.target.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
-  // console.log("x=" + x + ",y=" + y);
-
   this.checkAnswer(x, y);
 }
 
@@ -417,8 +410,6 @@ SakanaHen.prototype.onClickAnswerTouch = function (event) {
   const rect = this.canvas.getBoundingClientRect();
   const x = event.touches[0].pageX - rect.left;
   const y = event.touches[0].pageY - rect.top;
-  // console.log("x=" + x + ",y=" + y);
-
   this.checkAnswer(x, y);
 }
 
@@ -427,9 +418,7 @@ SakanaHen.prototype.onClickAnswerTouch = function (event) {
  */
 SakanaHen.prototype.onMouseMoveAnswer = function (event) {
   const rect = event.target.getBoundingClientRect();
-  // const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
-  // console.log("x=" + x + ",y=" + y);
 
   let cursor = 'default';
   const posY = 250;
@@ -541,7 +530,7 @@ SakanaHen.prototype.draw = function () {
   grad.addColorStop(0.5, 'rgb(255, 255, 255)');
   /* グラデーションをfillStyleプロパティにセット */
   this.ctx.fillStyle = grad;
-	// this.ctx.fillStyle = "rgb(255,255,0)";
+  // this.ctx.fillStyle = "rgb(255,255,0)";
   this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
   //----------
@@ -696,7 +685,7 @@ SakanaHen.prototype.endGame = function () {
   // クリック
   this.ctx.font = "20px " + this.FONT_COMMON;
   this.ctx.fillStyle = "rgb(0,0,0)";
-  const strStart = "画面クリックでタイトルへ";
+  const strStart = "画面" + (this.isSmartPhone() ? "タップ" : "クリック") + "でタイトルへ";
   tm = this.ctx.measureText(strStart);
   this.ctx.fillText(strStart, (this.canvas.width - tm.width) / 2, posY + 100);
 
