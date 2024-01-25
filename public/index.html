@@ -1,11 +1,9 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta http-equiv="X-UA-Compatible" content="IE=9">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>「さかなへん」クイズ</title>
-<script type="text/javascript" src="js/jquery.js"></script>
 <script type="text/javascript" src="js/app.js"></script>
 <script>
 /** さかなへんクイズインスタンス */
@@ -19,37 +17,22 @@ onload = function() {
 	sakana = new SakanaHen("id_canvas");
 
 	//======================
-	// 拡大縮小処理
+	// 拡大処理
 	//======================
-	// 縮小
-	$("#btn_zoom_out").click(function(){
-		$("#id_canvas").animate({
-			width: "100px",
-			height: "100px",
-			opacity: 0.1
-		}, 1500 );
-		sakana.vHeight = 100;
-	});
-
+  const canvas = document.getElementById("id_canvas");
 	// 通常
-	$("#btn_zoom_normal").click(function(){
-		$("#id_canvas").animate({
-			width: "400px",
-			height: "400px",
-			opacity: 1.0
-		}, 1500 );
-		sakana.vHeight = 400;
-	});
+  document.getElementById("btn_zoom_normal").addEventListener('click', () => {
+    canvas.style.width = "400px";
+    canvas.style.height = "400px";
+    sakana.vHeight = 400;
+  });
 
 	// 拡大
-	$("#btn_zoom_in").click(function(){
-		$("#id_canvas").animate({
-			width: "600px",
-			height: "600px",
-			opacity: 1.0
-		}, 1500 );
-		sakana.vHeight = 600;
-	});
+  document.getElementById("btn_zoom_in").addEventListener('click', () => {
+    canvas.style.width = "600px";
+    canvas.style.height = "600px";
+    sakana.vHeight = 600;
+  });
 }
 </script>
 <style>
@@ -72,7 +55,6 @@ body {
 非対応ブラウザです。
 </canvas>
 <div>
-<input type="button" id="btn_zoom_out" value="縮小" />
 <input type="button" id="btn_zoom_normal" value="標準" />
 <input type="button" id="btn_zoom_in" value="拡大" />
 </div>
