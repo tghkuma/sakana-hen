@@ -119,9 +119,9 @@ SakanaHen.prototype.listQuiz;
 SakanaHen.prototype.quizNo;
 
 /** 寿司移動待ち値(オリジナル) */
-SakanaHen.prototype.susi_move_count_org;
+SakanaHen.prototype.moveCountSushi_org;
 /** 寿司移動待ち値 */
-SakanaHen.prototype.susi_move_count;
+SakanaHen.prototype.moveCountSushi;
 
 
 /** 選択クリック番号 */
@@ -130,7 +130,7 @@ SakanaHen.prototype.selecsionClickNo;
 /** 当たり/はずれ */
 SakanaHen.prototype.bHit;
 /** 当たりはずれ待ち値(オリジナル) */
-SakanaHen.prototype.hit_wait_org;
+SakanaHen.prototype.hitWait_org;
 /** 当たりはずれ待ち値 */
 SakanaHen.prototype.hitWait;
 
@@ -367,11 +367,11 @@ SakanaHen.prototype.startGame = function () {
   const interval_time = 1000 / this.FRAME_RATE;
 
   // ウェイト値計算/設定
-  this.susi_move_count_org = this.SUSI_MOVE_TIME / interval_time;
-  this.hit_wait_org = this.HIT_WAIT_TIME / interval_time;
+  this.moveCountSushi_org = this.SUSI_MOVE_TIME / interval_time;
+  this.hitWait_org = this.HIT_WAIT_TIME / interval_time;
 
   // 初期ウェイト値設定
-  this.susi_move_count = this.susi_move_count_org;
+  this.moveCountSushi = this.moveCountSushi_org;
   this.hitWait = 0;
 
   // タイマー設定
@@ -460,11 +460,11 @@ SakanaHen.prototype.checkAnswer = function (x, y) {
     const posY = 250 + 50 * answerNo;
     if (posY <= y && y < posY + 50) {
       this.selecsionClickNo = answerNo;
-      // console.log("選択=" + this.selecsionClickNo);
+      // console.log("選択=" + this.clickSelectionNo);
 
       const itemQuiz = this.listQuiz[this.quizNo];
       // あたり/はずれ処理
-      this.setHit(this.selecsionClickNo === itemQuiz.answerNo);
+      this.setHit(this.clickSelectionNo === itemQuiz.answerNo);
 
       return;
     }
@@ -476,10 +476,10 @@ SakanaHen.prototype.checkAnswer = function (x, y) {
  */
 SakanaHen.prototype.nextQuiz = function () {
   // 選択クリア
-  this.selecsionClickNo = undefined;
+  this.clickSelectionNo = undefined;
 
   if (this.quizNo < this.listQuiz.length - 1) {
-    this.susi_move_count = this.susi_move_count_org;
+    this.moveCountSushi = this.moveCountSushi_org;
     this.quizNo++;
   } else {
     // ゲーム終了
@@ -501,7 +501,7 @@ SakanaHen.prototype.setHit = function (bHit) {
     this.playSound('s_miss');
   }
   // エフェクト時間設定
-  this.hitWait = this.hit_wait_org;
+  this.hitWait = this.hitWait_org;
 }
 
 
@@ -513,7 +513,7 @@ SakanaHen.prototype.timer = function () {
   this.timer_count++;
 
   if (this.hitWait <= 0) {
-    if (--this.susi_move_count <= 0) {
+    if (--this.moveCountSushi <= 0) {
       // はずれ
       this.setHit(false);
     }
@@ -576,7 +576,7 @@ SakanaHen.prototype.draw = function () {
   // 背景色
   //----------
   const marginX = 84;
-  const posX = (((this.canvas.width + marginX * 2) / this.susi_move_count_org) * this.susi_move_count) - marginX;
+  const posX = (((this.canvas.width + marginX * 2) / this.moveCountSushi_org) * this.moveCountSushi) - marginX;
   const posY = 146;
   // 皿
   this.ctx.drawImage(this.img_sara, posX - 24, posY);
@@ -604,7 +604,7 @@ SakanaHen.prototype.draw = function () {
     const posY = 250 + 50 * answerNo;
 
     // ボタン描画
-    const img_btn = (this.selecsionClickNo === answerNo) ? this.img_btn_1 : this.img_btn_0;
+    const img_btn = (this.clickSelectionNo === answerNo) ? this.img_btn_1 : this.img_btn_0;
     this.ctx.drawImage(img_btn, 1, posY);
 
     // 回答文字列
@@ -619,7 +619,7 @@ SakanaHen.prototype.draw = function () {
   if (0 < this.hitWait) {
     this.ctx.font = "bold 80px " + this.FONT_SUSHI;
     const img_ans = this.bHit ? this.img_ans_ok : this.img_ans_ng;
-    const posY = 120 + (this.hitWait / this.hit_wait_org * 40);
+    const posY = 120 + (this.hitWait / this.hitWait_org * 40);
     this.ctx.drawImage(img_ans, (this.canvas.width - img_ans.width) / 2, posY);
   }
 
