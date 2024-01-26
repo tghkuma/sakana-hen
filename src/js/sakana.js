@@ -5,29 +5,9 @@
  * @copyright 2011-2024 Team-Grasshopper, Inc.
  * @link      https://team-grasshopper.info/
  */
-
-class Log {
-  static debug = false;
-
-  /**
-   * ログ出力
-   *
-   * @param message メッセージ
-   */
-  static info(message) {
-    if (this.debug) {
-      console.log(message);
-    }
-  }
-  static warn(message) {
-    console.warn(message);
-  }
-  static error(message) {
-    console.error(message);
-  }
-}
-
-class SakanaHen {
+import {Log} from './log';
+import {LST_SAKANA_HEN} from "./dakana_data";
+export class SakanaHen {
   /** フレームレート */
   FRAME_RATE = 60;
   /** 寿司移動時間(mS) */
@@ -317,14 +297,12 @@ class SakanaHen {
     //==============
     // 問題生成
     //==============
-    const sakana_length = this.LST_SAKANA_HEN.length;
-
     // データ転記
-    let lst_sakana_hen = JSON.parse(JSON.stringify(this.LST_SAKANA_HEN));
+    let lst_sakana_hen = JSON.parse(JSON.stringify(LST_SAKANA_HEN));
     // シャッフル
     for (let i = 0; i < 100; i++) {
-      const itemNo0 = Math.floor(Math.random() * sakana_length);
-      const itemNo1 = Math.floor(Math.random() * sakana_length);
+      const itemNo0 = Math.floor(Math.random() * LST_SAKANA_HEN.length);
+      const itemNo1 = Math.floor(Math.random() * LST_SAKANA_HEN.length);
       [lst_sakana_hen[itemNo0], lst_sakana_hen[itemNo1]] = [lst_sakana_hen[itemNo1], lst_sakana_hen[itemNo0]];
     }
     // 問題/回答生成
@@ -343,7 +321,7 @@ class SakanaHen {
         else {
           const getMissItem = () => {
             while (true) {
-              const missItem = this.LST_SAKANA_HEN[Math.floor(Math.random() * sakana_length)][1];
+              const missItem = LST_SAKANA_HEN[Math.floor(Math.random() * LST_SAKANA_HEN.length)][1];
               // 当たりに存在するかチェック
               if (missItem === answer) {
                 continue;
@@ -731,66 +709,4 @@ class SakanaHen {
       || navigator.userAgent.indexOf('iPad') > 0
       || navigator.userAgent.indexOf('Android') > 0;
   }
-
-  /**
-   * 魚偏データ
-   */
-  LST_SAKANA_HEN = [
-    ["鯵", "あじ"],
-    ["鮎", "あゆ"],
-    ["鮑", "あわび"],
-    ["鮟", "あんこう"],
-    ["鰂", "いか"],
-    ["鮸", "いしもち"],
-    ["鰍", "いなだ"],
-    ["鰯", "いわし"],
-    ["鮇", "いわな"],
-    ["鯏", "うぐい"],
-    ["鱓", "うつぼ"],
-    ["鰻", "うなぎ"],
-    ["鱠", "えそ"],
-    ["鰕", "えび"],
-    ["鯑", "かずのこ"],
-    ["鰹", "かつお"],
-    ["魳", "かます"],
-    ["鰈", "かれい"],
-    ["鮍", "かわはぎ"],
-    ["鱚", "きす"],
-    ["鯨", "くじら"],
-    ["鮓", "くらげ"],
-    ["鯉", "こい"],
-    ["鯒", "こち"],
-    ["鮗", "このしろ"],
-    ["鮴", "ごり"],
-    ["鮭", "さけ"],
-    ["鯖", "さば"],
-    ["鮫", "さめ"],
-    ["鰆", "さわら"],
-    ["鯱", "しゃち"],
-    ["鮩", "しらうお"],
-    ["鱸", "すずき"],
-    ["魭", "すっぽん"],
-    ["鰑", "するめ"],
-    ["鯛", "たい"],
-    ["鮹", "たこ"],
-    ["魛", "たちうお"],
-    ["魴", "たなご"],
-    ["鱈", "たら"],
-    ["鰌", "どじょう"],
-    ["鮠", "なまず"],
-    ["鰊", "にしん"],
-    ["魦", "はぜ"],
-    ["鰰", "はたはた"],
-    ["魬", "はまち"],
-    ["鱧", "はも"],
-    ["鰙", "はや"],
-    ["鮠", "はや"],
-    ["鮃", "ひらめ"],
-    ["鰒", "ふぐ"],
-    ["鮒", "ふな"],
-    ["鰤", "ぶり"],
-    ["鯔", "ぼら"],
-    ["鮪", "まぐろ"],
-    ["鱒", "ます"]
-  ];
 }

@@ -4,17 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>「さかなへん」クイズ</title>
-<script type="text/javascript" src="js/app.js"></script>
-<script>
-/** さかなへんクイズインスタンス */
-let sakana;
-
-  /**
+<script type="module" src="./js/index.js"></script>
+<script type="module">
+import { SakanaHen } from './js';
+/**
 * 起動時処理
 */
 onload = function() {
 	// さかなへんクイズ本体
-	sakana = new SakanaHen("id_canvas", { debug: true });
+	const sakana = new SakanaHen("id_canvas");
 
 	//======================
 	// 拡大処理

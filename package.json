@@ -1,0 +1,18 @@
+{
+  "name": "sakana-hen",
+  "version": "0.1",
+  "description": "さかな偏クイズ",
+  "main": "index.js",
+  "repository": "https://github.com/tghkuma/sakana-hen.git",
+  "author": "tghkuma <info@team-grasshopper.info>",
+  "license": "XXX",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite dev"
+  },
+  "devDependencies": {},
+  "private": true,
+  "dependencies": {
+    "vite": "^5.0.12"
+  }
+}
