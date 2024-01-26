@@ -34,7 +34,7 @@ export class SakanaHen {
    * 結果
    * x<=正解数,メッセージ,サウンド
    */
-  RESULT_INFO = [
+  RESULT_INFO: [number, string, string][] = [
     [10, '大変よくできました', 's_fanfare'],
     [7, 'よくできました', 's_fanfare'],
     [4, 'もう少しです', 's_gameover'],
@@ -69,60 +69,64 @@ export class SakanaHen {
   debug = false
 
   /** キャンバスID名 */
-  canvas_id: string
+  canvas_id: string | undefined
   /** キャンバス関連 */
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement | undefined
   /** キャンバス関連コンテキスト */
-  ctx: CanvasRenderingContext2D
+  ctx: CanvasRenderingContext2D | undefined
 
   /**
    * 仮想キャンバスの高さ
    * 拡大縮小時のマウスクリック座標補正に使用
    */
-  vHeight: number
+  vHeight: number = 0
 
   image: {
     [key: string]: HTMLImageElement
-  }
+  } = {}
   /** 読み込み成功フラグ */
-  load_success: boolean
+  load_success: boolean = false
   /** 読み込み中数 */
-  load_count: number
+  load_count: number = 0
   /** 読み込み最大数 */
-  load_max_count: number
+  load_max_count: number = 0
+
+  sound: {
+    [key: string]: HTMLAudioElement
+  } = {}
 
   /** タイマーID */
-  timerId: number
+  timerId: number | undefined
   /** タイマーカウント */
-  timer_count: number
+  timer_count: number = 0
 
   /** クリック処理無名関数退避 */
-  onClickAnswerFunc: (this: HTMLCanvasElement, ev: MouseEvent | TouchEvent) => any
+  onClickAnswerFunc?: any
   /** マウスオーバー処理無名関数退避 */
-  onMouseMoveAnswerFunc: (this: HTMLCanvasElement, ev: MouseEvent) => any
+  onMouseMoveAnswerFunc?: any
 
   /** 魚偏問題リスト */
-  listQuiz: any[]
+  listQuiz: any[] = []
   /** 問題番号 */
-  quizNo: number
+  quizNo: number = 0
 
   /** 寿司移動待ち値(オリジナル) */
-  moveCountSushi_org: number
+  moveCountSushi_org: number = 0
   /** 寿司移動待ち値 */
-  moveCountSushi: number
+  moveCountSushi: number = 0
 
   /** 選択クリック番号 */
-  clickSelectionNo: number
+  clickSelectionNo: number | undefined
 
   /** 当たり/はずれ */
-  bHit: boolean
+  bHit: boolean = false
   /** 当たりはずれ待ち値(オリジナル) */
-  hitWait_org: number
+  hitWait_org: number = 0
   /** 当たりはずれ待ち値 */
-  hitWait: number
+  hitWait: number = 0
 
   /** 正解数 */
-  hitCount: number
+  hitCount: number = 0
 
   /**
    */
@@ -134,7 +138,6 @@ export class SakanaHen {
    */
   constructor(canvas_id: string, options: any) {
     if (options) {
-      // @ts-ignore
       Object.assign(this, options)
     }
     Log.debug = this.debug
@@ -153,19 +156,19 @@ export class SakanaHen {
 
     // canvas要素が無い場合、未対応ブラウザ
     this.canvas = document.getElementById(canvas_id) as HTMLCanvasElement
-    if (!this.canvas || !this.canvas.getContext) {
+    if (!this.canvas || !this.canvas!.getContext) {
       alert('本ページの閲覧はHTML5対応ブラウザで行ってください')
       return
     }
 
     // キャンバスサイズ設定
-    this.canvas.width = this.CANVAS_WIDTH
-    this.canvas.height = this.CANVAS_HEIGHT
+    this.canvas!.width = this.CANVAS_WIDTH
+    this.canvas!.height = this.CANVAS_HEIGHT
 
-    this.ctx = this.canvas.getContext('2d')
+    this.ctx = this.canvas!.getContext('2d')!
 
     // 仮想座標初期値設定
-    this.vHeight = this.canvas.height
+    this.vHeight = this.canvas!.height
 
     //----------
     // 画像ファイルロード
@@ -173,15 +176,15 @@ export class SakanaHen {
     this.load_success = true
     this.load_count = 0
     this.load_max_count = this.LST_IMAGES.length
-    this.ctx.font = '12px ' + this.FONT_COMMON
-    this.ctx.fillText('ロード中:0/' + this.load_max_count, 0, 20)
+    this.ctx!.font = '12px ' + this.FONT_COMMON
+    this.ctx!.fillText('ロード中:0/' + this.load_max_count, 0, 20)
 
     // 画像ファイルロード
     this.image = {}
     this.LST_IMAGES.forEach((item) => {
       const image = new Image()
       image.onload = (event) => this.onload(event)
-      image.onerror = (event: Event) => this.onerror(event)
+      image.onerror = (event) => this.onerror(event as Event)
       image.src = item[1]
       this.image[item[0]] = image
     })
@@ -191,7 +194,7 @@ export class SakanaHen {
     //----------
     // サポート拡張子確定
     const audio = new Audio()
-    let ext: string
+    let ext: string | undefined
     if (audio.canPlayType('audio/ogg')) {
       ext = '.ogg'
     } else if (audio.canPlayType('audio/mpeg')) {
@@ -201,7 +204,7 @@ export class SakanaHen {
 
     if (ext) {
       this.LST_AUDIOS.forEach((item) => {
-        this[item[0]] = new Audio(item[1] + ext)
+        this.sound[item[0]] = new Audio(item[1] + ext)
       })
     }
   }
@@ -214,8 +217,8 @@ export class SakanaHen {
 
     const strMessage = 'ロード成功:' + this.load_count + '/' + this.load_max_count + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
     Log.info(strMessage)
-    this.ctx.font = '12px ' + this.FONT_COMMON
-    this.ctx.fillText(strMessage, 0, 20 + this.load_count * 12)
+    this.ctx!.font = '12px ' + this.FONT_COMMON
+    this.ctx!.fillText(strMessage, 0, 20 + this.load_count * 12)
 
     // 全ファイルロード成功の時はタイトルへ
     if (this.load_max_count <= this.load_count && this.load_success) {
@@ -232,8 +235,8 @@ export class SakanaHen {
 
     const strMessage = 'ロード失敗:' + this.load_count + '/' + this.load_max_count + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
     Log.warn(strMessage)
-    this.ctx.font = '12px ' + this.FONT_COMMON
-    this.ctx.fillText(strMessage, 0, 20 + this.load_count * 12)
+    this.ctx!.font = '12px ' + this.FONT_COMMON
+    this.ctx!.fillText(strMessage, 0, 20 + this.load_count * 12)
   }
 
   /**
@@ -244,38 +247,38 @@ export class SakanaHen {
     // スタート画面描画
     //======================
     // 背景消去
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    this.ctx!.clearRect(0, 0, this.canvas!.width, this.canvas!.height)
 
     // 湯呑
-    this.ctx.drawImage(this.image.img_yunomi, (this.canvas.width - this.image.img_yunomi.width) / 2, (this.canvas.height - this.image.img_yunomi.height) / 2)
+    this.ctx!.drawImage(this.image.img_yunomi, (this.canvas!.width - this.image.img_yunomi.width) / 2, (this.canvas!.height - this.image.img_yunomi.height) / 2)
 
     // 文字
-    this.ctx.font = '30px ' + this.FONT_SUSHI
+    this.ctx!.font = '30px ' + this.FONT_SUSHI
     const strTitle = '『さかなへん』クイズ'
-    let tm = this.ctx.measureText(strTitle)
-    const posX = (this.canvas.width - tm.width) / 2
-    const posY = (this.canvas.height - 60) / 2
+    let tm = this.ctx!.measureText(strTitle)
+    const posX = (this.canvas!.width - tm.width) / 2
+    const posY = (this.canvas!.height - 60) / 2
 
-    this.ctx.fillStyle = 'rgba(0,255,0,0.6)'
-    this.ctx.fillRect(posX, posY, tm.width, 60)
-    this.ctx.fillStyle = 'rgb(255,255,255)'
-    this.ctx.beginPath()
-    this.ctx.strokeStyle = 'rgb(255,255,0)'
-    this.ctx.rect(posX, posY, tm.width, 60)
-    this.ctx.stroke()
-    this.ctx.fillStyle = 'rgb(255,0,0)'
-    this.ctx.fillText(strTitle, posX, posY + 30)
+    this.ctx!.fillStyle = 'rgba(0,255,0,0.6)'
+    this.ctx!.fillRect(posX, posY, tm.width, 60)
+    this.ctx!.fillStyle = 'rgb(255,255,255)'
+    this.ctx!.beginPath()
+    this.ctx!.strokeStyle = 'rgb(255,255,0)'
+    this.ctx!.rect(posX, posY, tm.width, 60)
+    this.ctx!.stroke()
+    this.ctx!.fillStyle = 'rgb(255,0,0)'
+    this.ctx!.fillText(strTitle, posX, posY + 30)
 
-    this.ctx.font = '20px ' + this.FONT_COMMON
-    this.ctx.fillStyle = 'rgb(255,255,255)'
+    this.ctx!.font = '20px ' + this.FONT_COMMON
+    this.ctx!.fillStyle = 'rgb(255,255,255)'
     const strStart = '画面' + (this.isSmartPhone() ? 'タップ' : 'クリック') + 'でスタート'
-    tm = this.ctx.measureText(strStart)
-    this.ctx.fillText(strStart, (this.canvas.width - tm.width) / 2, posY + 52)
+    tm = this.ctx!.measureText(strStart)
+    this.ctx!.fillText(strStart, (this.canvas!.width - tm.width) / 2, posY + 52)
 
     //======================
     // スタートボタン処理
     //======================
-    this.canvas.addEventListener(
+    this.canvas!.addEventListener(
       'click',
       () => {
         // alert("開始");
@@ -314,7 +317,7 @@ export class SakanaHen {
     for (let quizNo = 0; quizNo < this.MAX_QUIZ_NO; quizNo++) {
       const answerNo = Math.floor(Math.random() * this.MAX_ANSWER_NO)
       // Log.info("問題" + quizNo + ":" + answerNo);
-      const selection = []
+      const selection: string[] = []
       const [quiz, answer] = lst_sakana_hen.shift()
       for (let selectNo = 0; selectNo < this.MAX_ANSWER_NO; selectNo++) {
         // 当たり生成
@@ -374,14 +377,14 @@ export class SakanaHen {
     // スマホ以外
     if (!this.isSmartPhone()) {
       this.onClickAnswerFunc = (event: MouseEvent) => this.onClickAnswerFuncClick(event)
-      this.canvas.addEventListener('click', this.onClickAnswerFunc, false)
+      this.canvas!.addEventListener('click', this.onClickAnswerFunc, false)
       this.onMouseMoveAnswerFunc = (event: MouseEvent) => this.onMouseMoveAnswer(event)
-      this.canvas.addEventListener('mousemove', this.onMouseMoveAnswerFunc, false)
+      this.canvas!.addEventListener('mousemove', this.onMouseMoveAnswerFunc, false)
     }
     // スマホ
     else {
-      this.onClickAnswerFunc = (event: TouchEvent) => this.onClickAnswerFuncTouch(event)
-      this.canvas.addEventListener('touchstart', this.onClickAnswerFunc, false)
+      this.onClickAnswerFunc = (event: TouchEvent) => this.onClickAnswerFuncTouch(event as TouchEvent)
+      this.canvas!.addEventListener('touchstart', this.onClickAnswerFunc, false)
     }
 
     // 初期描画
@@ -402,7 +405,7 @@ export class SakanaHen {
    * 回答クリック(スマホ版)
    */
   onClickAnswerFuncTouch(event: TouchEvent) {
-    const rect = this.canvas.getBoundingClientRect()
+    const rect = this.canvas!.getBoundingClientRect()
     const x = event.touches[0].pageX - rect.left
     const y = event.touches[0].pageY - rect.top
     this.checkAnswer(x, y)
@@ -420,7 +423,7 @@ export class SakanaHen {
     if (this.hitWait <= 0 && posY <= y && y < posY + 50 * this.MAX_ANSWER_NO) {
       cursor = 'pointer'
     }
-    this.canvas.style.cursor = cursor
+    this.canvas!.style.cursor = cursor
   }
 
   /**
@@ -436,7 +439,7 @@ export class SakanaHen {
     }
 
     // 仮想サイズに補正
-    y = (y * this.canvas.height) / this.vHeight
+    y = (y * this.canvas!.height) / this.vHeight
 
     // 回答判定
     for (let answerNo = 0; answerNo < this.MAX_ANSWER_NO; answerNo++) {
@@ -518,14 +521,14 @@ export class SakanaHen {
    */
   draw() {
     /* グラデーション領域をセット */
-    const grad = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height)
+    const grad = this.ctx!.createLinearGradient(0, 0, 0, this.canvas!.height)
     /* グラデーション終点のオフセットと色をセット */
     grad.addColorStop(0, 'rgb(255, 255, 0)')
     grad.addColorStop(0.5, 'rgb(255, 255, 255)')
     /* グラデーションをfillStyleプロパティにセット */
-    this.ctx.fillStyle = grad
-    // this.ctx.fillStyle = "rgb(255,255,0)";
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
+    this.ctx!.fillStyle = grad
+    // this.ctx!.fillStyle = "rgb(255,255,0)";
+    this.ctx!.fillRect(0, 0, this.canvas!.width, this.canvas!.height)
 
     //----------
     // くーまん描画処理
@@ -536,15 +539,15 @@ export class SakanaHen {
     } else {
       img_kuman = this.image.img_kuman
     }
-    this.ctx.drawImage(img_kuman, (this.canvas.width - img_kuman.width) / 2, 290 - img_kuman.height)
+    this.ctx!.drawImage(img_kuman, (this.canvas!.width - img_kuman.width) / 2, 290 - img_kuman.height)
 
     // 帽子
-    this.ctx.drawImage(this.image.img_boushi, (this.canvas.width - this.image.img_boushi.width) / 2, 25)
+    this.ctx!.drawImage(this.image.img_boushi, (this.canvas!.width - this.image.img_boushi.width) / 2, 25)
 
     //----------
     // テーブル
     //----------
-    this.ctx.drawImage(this.image.img_table, 0, 160)
+    this.ctx!.drawImage(this.image.img_table, 0, 160)
 
     //----------
     // 寿司＋さかなへん
@@ -554,10 +557,10 @@ export class SakanaHen {
     // 背景色
     //----------
     const marginX = 84
-    const posX = ((this.canvas.width + marginX * 2) / this.moveCountSushi_org) * this.moveCountSushi - marginX
+    const posX = ((this.canvas!.width + marginX * 2) / this.moveCountSushi_org) * this.moveCountSushi - marginX
     const posY = 146
     // 皿
-    this.ctx.drawImage(this.image.img_sara, posX - 24, posY)
+    this.ctx!.drawImage(this.image.img_sara, posX - 24, posY)
 
     // クイズ
     const itemQuiz = this.listQuiz[this.quizNo]
@@ -565,40 +568,40 @@ export class SakanaHen {
     if (this.debug) {
       strQuiz += '(' + itemQuiz.answer + ')'
     }
-    this.ctx.font = '60px ' + this.FONT_SUSHI
-    this.ctx.strokeStyle = 'rgb(255,255,255)'
-    this.ctx.lineWidth = 4
-    this.ctx.strokeText(strQuiz, posX, posY + 55)
-    this.ctx.lineWidth = 1
-    this.ctx.fillStyle = 'rgb(0,0,0)'
-    this.ctx.fillText(strQuiz, posX, posY + 55)
+    this.ctx!.font = '60px ' + this.FONT_SUSHI
+    this.ctx!.strokeStyle = 'rgb(255,255,255)'
+    this.ctx!.lineWidth = 4
+    this.ctx!.strokeText(strQuiz, posX, posY + 55)
+    this.ctx!.lineWidth = 1
+    this.ctx!.fillStyle = 'rgb(0,0,0)'
+    this.ctx!.fillText(strQuiz, posX, posY + 55)
 
     //----------
     // 三択描画
     //----------
-    this.ctx.fillStyle = 'rgb(255,255,255)'
-    this.ctx.fillRect(0, 250, this.canvas.width, this.canvas.height)
+    this.ctx!.fillStyle = 'rgb(255,255,255)'
+    this.ctx!.fillRect(0, 250, this.canvas!.width, this.canvas!.height)
     for (let answerNo = 0; answerNo < this.MAX_ANSWER_NO; answerNo++) {
       const posY = 250 + 50 * answerNo
 
       // ボタン描画
       const img_btn = this.clickSelectionNo === answerNo ? this.image.img_btn_1 : this.image.img_btn_0
-      this.ctx.drawImage(img_btn, 1, posY)
+      this.ctx!.drawImage(img_btn, 1, posY)
 
       // 回答文字列
-      this.ctx.font = '40px ' + this.FONT_SUSHI
-      this.ctx.fillStyle = 'rgb(0,0,0)'
-      this.ctx.fillText(itemQuiz.selection[answerNo], 4, posY + 40)
+      this.ctx!.font = '40px ' + this.FONT_SUSHI
+      this.ctx!.fillStyle = 'rgb(0,0,0)'
+      this.ctx!.fillText(itemQuiz.selection[answerNo], 4, posY + 40)
     }
 
     //----------
     // 当たり/はずれ
     //----------
     if (0 < this.hitWait) {
-      this.ctx.font = 'bold 80px ' + this.FONT_SUSHI
+      this.ctx!.font = 'bold 80px ' + this.FONT_SUSHI
       const img_ans = this.bHit ? this.image.img_ans_ok : this.image.img_ans_ng
       const posY = 120 + (this.hitWait / this.hitWait_org) * 40
-      this.ctx.drawImage(img_ans, (this.canvas.width - img_ans.width) / 2, posY)
+      this.ctx!.drawImage(img_ans, (this.canvas!.width - img_ans.width) / 2, posY)
     }
 
     //----------
@@ -606,15 +609,15 @@ export class SakanaHen {
     //----------
     // 問題
     const strQuizNo = '問題:' + (this.quizNo + 1) + '/' + this.listQuiz.length
-    this.ctx.font = '30px ' + this.FONT_COMMON
-    this.ctx.fillStyle = 'rgb(0,0,0)'
-    const tm = this.ctx.measureText(strQuizNo)
-    const statusPosX = this.canvas.width - tm.width
-    this.ctx.fillText(strQuizNo, statusPosX, 30)
+    this.ctx!.font = '30px ' + this.FONT_COMMON
+    this.ctx!.fillStyle = 'rgb(0,0,0)'
+    const tm = this.ctx!.measureText(strQuizNo)
+    const statusPosX = this.canvas!.width - tm.width
+    this.ctx!.fillText(strQuizNo, statusPosX, 30)
 
     // 正解数
     const strScore = '正解:' + this.hitCount
-    this.ctx.fillText(strScore, statusPosX, 60)
+    this.ctx!.fillText(strScore, statusPosX, 60)
   }
 
   /**
@@ -624,21 +627,22 @@ export class SakanaHen {
     // タイマー削除
     if (this.timerId) {
       clearInterval(this.timerId)
-      this.timerId = null
+      this.timerId = undefined
     }
 
     //--------------
     // 回答クリックイベント削除
     //--------------
-    this.canvas.removeEventListener('click', this.onClickAnswerFunc)
+    this.canvas!.removeEventListener('click', this.onClickAnswerFunc)
     // マウスカーソルリセット
-    this.canvas.removeEventListener('mousemove', this.onMouseMoveAnswerFunc)
-    this.canvas.style.cursor = 'default'
+    this.canvas!.removeEventListener('mousemove', this.onMouseMoveAnswerFunc)
+    this.canvas!.style.cursor = 'default'
 
     //======================
     // 結果データ
     //======================
-    const [_point, strResult, aResult] = this.RESULT_INFO.find((item) => item[0] <= this.hitCount)
+    // @ts-ignore
+    const [_point, strResult, aResult]: [number, string, string] = this.RESULT_INFO.find((item) => item[0] <= this.hitCount)
 
     // サウンド
     this.playSound(aResult)
@@ -647,41 +651,41 @@ export class SakanaHen {
     // ゲームオーバー画面描画
     //======================
     // 背景クリア
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    this.ctx!.clearRect(0, 0, this.canvas!.width, this.canvas!.height)
 
     const posY = 100
 
     // 文字
-    this.ctx.font = '30px ' + this.FONT_COMMON
+    this.ctx!.font = '30px ' + this.FONT_COMMON
     const strTitle = 'ゲームオーバー'
-    let tm = this.ctx.measureText(strTitle)
-    let posX = (this.canvas.width - tm.width) / 2
-    this.ctx.fillStyle = 'rgb(255,0,0)'
-    this.ctx.fillText(strTitle, posX, posY)
+    let tm = this.ctx!.measureText(strTitle)
+    let posX = (this.canvas!.width - tm.width) / 2
+    this.ctx!.fillStyle = 'rgb(255,0,0)'
+    this.ctx!.fillText(strTitle, posX, posY)
 
     // 正解数
     const strScore = '正解:' + this.hitCount + '/' + this.listQuiz.length
-    tm = this.ctx.measureText(strScore)
-    posX = (this.canvas.width - tm.width) / 2
-    this.ctx.fillText(strScore, posX, posY + 30)
+    tm = this.ctx!.measureText(strScore)
+    posX = (this.canvas!.width - tm.width) / 2
+    this.ctx!.fillText(strScore, posX, posY + 30)
 
     // 結果
-    tm = this.ctx.measureText(strResult)
-    posX = (this.canvas.width - tm.width) / 2
-    this.ctx.fillStyle = 'rgb(0,60,0)'
-    this.ctx.fillText(strResult, posX, posY + 60)
+    tm = this.ctx!.measureText(strResult)
+    posX = (this.canvas!.width - tm.width) / 2
+    this.ctx!.fillStyle = 'rgb(0,60,0)'
+    this.ctx!.fillText(strResult, posX, posY + 60)
 
     // クリック
-    this.ctx.font = '20px ' + this.FONT_COMMON
-    this.ctx.fillStyle = 'rgb(0,0,0)'
+    this.ctx!.font = '20px ' + this.FONT_COMMON
+    this.ctx!.fillStyle = 'rgb(0,0,0)'
     const strStart = '画面' + (this.isSmartPhone() ? 'タップ' : 'クリック') + 'でタイトルへ'
-    tm = this.ctx.measureText(strStart)
-    this.ctx.fillText(strStart, (this.canvas.width - tm.width) / 2, posY + 100)
+    tm = this.ctx!.measureText(strStart)
+    this.ctx!.fillText(strStart, (this.canvas!.width - tm.width) / 2, posY + 100)
 
     //======================
     // タイトル遷移処理
     //======================
-    this.canvas.addEventListener(
+    this.canvas!.addEventListener(
       'click',
       () => {
         this.title()
@@ -696,7 +700,7 @@ export class SakanaHen {
    * @param id サウンドID
    */
   playSound(id: string) {
-    this[id].play()
+    this.sound[id].play()
   }
 
   /**
