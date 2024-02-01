@@ -35,34 +35,34 @@ export class SakanaHen {
    * x<=正解数,メッセージ,サウンド
    */
   RESULT_INFO: [number, string, string][] = [
-    [10, '大変よくできました', 's_fanfare'],
-    [7, 'よくできました', 's_fanfare'],
-    [4, 'もう少しです', 's_gameover'],
-    [0, 'がんばりましょう', 's_gameover'],
+    [10, '大変よくできました', 'fanfare'],
+    [7, 'よくできました', 'fanfare'],
+    [4, 'もう少しです', 'gameover'],
+    [0, 'がんばりましょう', 'gameover'],
   ]
 
   /** 画像リスト */
   LST_IMAGES = [
-    ['img_kuman', 'ku_man.svg'],
-    ['img_kuman_ok', 'ku_man_ok.svg'],
-    ['img_kuman_ng', 'ku_man_ng.svg'],
-    ['img_boushi', 'boushi.svg'],
-    ['img_table', 'table.svg'],
-    ['img_btn_0', 'btn_0.svg'],
-    ['img_btn_1', 'btn_1.svg'],
-    ['img_ans_ok', 'ans_ok.svg'],
-    ['img_ans_ng', 'ans_ng.svg'],
-    ['img_sara', 'sara.svg'],
-    ['img_yunomi', 'yunomi.png'],
+    ['kuman', 'ku_man.svg'],
+    ['kuman_ok', 'ku_man_ok.svg'],
+    ['kuman_ng', 'ku_man_ng.svg'],
+    ['boushi', 'boushi.svg'],
+    ['table', 'table.svg'],
+    ['btn_0', 'btn_0.svg'],
+    ['btn_1', 'btn_1.svg'],
+    ['ans_ok', 'ans_ok.svg'],
+    ['ans_ng', 'ans_ng.svg'],
+    ['sara', 'sara.svg'],
+    ['yunomi', 'yunomi.png'],
   ]
 
   /** 音声リスト */
   LST_AUDIOS = [
-    ['s_start', 'bgm_coinin_2'],
-    ['s_gameover', 'bgm_gameover_1'],
-    ['s_fanfare', 'bgm_fanfare_1'],
-    ['s_seikai', 'se_quizright_1'],
-    ['s_miss', 'se_quizmistake_1'],
+    ['start', 'bgm_coinin_2'],
+    ['gameover', 'bgm_gameover_1'],
+    ['fanfare', 'bgm_fanfare_1'],
+    ['seikai', 'se_quizright_1'],
+    ['miss', 'se_quizmistake_1'],
   ]
 
   /** デバッグ処理 */
@@ -230,6 +230,7 @@ export class SakanaHen {
    * ロード失敗処理
    */
   onerror(event: Event) {
+    console.error(event)
     ++this.load_count
     this.load_success = false
 
@@ -250,7 +251,7 @@ export class SakanaHen {
     this.ctx!.clearRect(0, 0, this.canvas!.width, this.canvas!.height)
 
     // 湯呑
-    this.ctx!.drawImage(this.image.img_yunomi, (this.canvas!.width - this.image.img_yunomi.width) / 2, (this.canvas!.height - this.image.img_yunomi.height) / 2)
+    this.ctx!.drawImage(this.image.yunomi, (this.canvas!.width - this.image.yunomi.width) / 2, (this.canvas!.height - this.image.yunomi.height) / 2)
 
     // 文字
     this.ctx!.font = '30px ' + this.FONT_SUSHI
@@ -299,7 +300,7 @@ export class SakanaHen {
    */
   startGame() {
     // 音再生
-    this.playSound('s_start')
+    this.playSound('start')
 
     //==============
     // 初期化処理
@@ -488,9 +489,9 @@ export class SakanaHen {
     this.bHit = bHit
     if (bHit) {
       this.hitCount++
-      this.playSound('s_seikai')
+      this.playSound('seikai')
     } else {
-      this.playSound('s_miss')
+      this.playSound('miss')
     }
     // エフェクト時間設定
     this.hitWait = this.hitWait_org
@@ -539,21 +540,21 @@ export class SakanaHen {
     //----------
     // くーまん描画処理
     //----------
-    let img_kuman: HTMLImageElement
+    let imgKuman: HTMLImageElement
     if (0 < this.hitWait) {
-      img_kuman = this.bHit ? this.image.img_kuman_ok : this.image.img_kuman_ng
+      imgKuman = this.bHit ? this.image.kuman_ok : this.image.kuman_ng
     } else {
-      img_kuman = this.image.img_kuman
+      imgKuman = this.image.kuman
     }
-    this.ctx!.drawImage(img_kuman, (this.canvas!.width - img_kuman.width) / 2, 290 - img_kuman.height)
+    this.ctx!.drawImage(imgKuman, (this.canvas!.width - imgKuman.width) / 2, 290 - imgKuman.height)
 
     // 帽子
-    this.ctx!.drawImage(this.image.img_boushi, (this.canvas!.width - this.image.img_boushi.width) / 2, 25)
+    this.ctx!.drawImage(this.image.boushi, (this.canvas!.width - this.image.boushi.width) / 2, 25)
 
     //----------
     // テーブル
     //----------
-    this.ctx!.drawImage(this.image.img_table, 0, 160)
+    this.ctx!.drawImage(this.image.table, 0, 160)
 
     //----------
     // 寿司＋さかなへん
@@ -566,7 +567,7 @@ export class SakanaHen {
     const posX = ((this.canvas!.width + marginX * 2) / this.moveCountSushi_org) * this.moveCountSushi - marginX
     const posY = 146
     // 皿
-    this.ctx!.drawImage(this.image.img_sara, posX - 24, posY)
+    this.ctx!.drawImage(this.image.sara, posX - 24, posY)
 
     // クイズ
     const itemQuiz = this.listQuiz[this.quizNo]
@@ -591,8 +592,8 @@ export class SakanaHen {
       const posY = 250 + 50 * answerNo
 
       // ボタン描画
-      const img_btn = this.clickSelectionNo === answerNo ? this.image.img_btn_1 : this.image.img_btn_0
-      this.ctx!.drawImage(img_btn, 1, posY)
+      const btn = this.clickSelectionNo === answerNo ? this.image.btn_1 : this.image.btn_0
+      this.ctx!.drawImage(btn, 1, posY)
 
       // 回答文字列
       this.ctx!.font = '40px ' + this.FONT_SUSHI
@@ -605,9 +606,9 @@ export class SakanaHen {
     //----------
     if (0 < this.hitWait) {
       this.ctx!.font = 'bold 80px ' + this.FONT_SUSHI
-      const img_ans = this.bHit ? this.image.img_ans_ok : this.image.img_ans_ng
+      const imgAnswer = this.bHit ? this.image.ans_ok : this.image.ans_ng
       const posY = 120 + (this.hitWait / this.hitWait_org) * 40
-      this.ctx!.drawImage(img_ans, (this.canvas!.width - img_ans.width) / 2, posY)
+      this.ctx!.drawImage(imgAnswer, (this.canvas!.width - imgAnswer.width) / 2, posY)
     }
 
     //----------

@@ -1,15 +1,1 @@
-<?xml version="1.0"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg version='1.1' width='398px' height='50px' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>
-	<defs>
-		<linearGradient id="grad0" gradientUnits="userSpaceOnUse"  x2="1" gradientTransform="matrix(261.15 -298.325 28.325 25.05 68.425 178.163)">
-		<stop offset="0%" stop-color="#CC6600"/>
-		<stop offset="100%" stop-color="#FFFFFF"/>
-		</linearGradient>
-	</defs>
-	<g transform="translate(-0,1)">
-		<path d="M 8.95 0 L 389.05 0 Q 397 0 397 8 L 397 40 Q 397 48 389.05 48 L 8.95 48 Q 1 48 1 40 L 1 8 Q 1 0 8.95 0 Z" fill="url(#grad0)"/>
-		<path d="M 8.95 0 Q 1 0 1 8 L 1 40 Q 1 48 8.95 48 L 389.05 48 Q 397 48 397 40" fill="none" stroke-width="2" stroke-linejoin="round" stroke="#CC9900"/>
-		<path d="M 397 40 L 397 8 Q 397 0 389.05 0 L 8.95 0" fill="none" stroke-width="2" stroke-linejoin="round" stroke="#FFCC00"/>
-	</g>
-</svg>
+<svg width="398" height="50" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="a" gradientUnits="userSpaceOnUse" x2="1" gradientTransform="matrix(261.15 -298.325 28.325 25.05 68.425 178.163)"><stop offset="0%" stop-color="#C60"/><stop offset="100%" stop-color="#FFF"/></linearGradient></defs><path d="M8.95 0h380.1Q397 0 397 8v32q0 8-7.95 8H8.95Q1 48 1 40V8q0-8 7.95-8z" fill="url(#a)" transform="translate(0 1)"/><path d="M8.95 1Q1 1 1 9v32q0 8 7.95 8h380.1q7.95 0 7.95-8" fill="none" stroke-width="2" stroke-linejoin="round" stroke="#C90"/><path d="M397 41V9q0-8-7.95-8H8.95" fill="none" stroke-width="2" stroke-linejoin="round" stroke="#FC0"/></svg>
