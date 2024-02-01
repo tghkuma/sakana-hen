@@ -393,18 +393,10 @@ export class SakanaHen {
     //--------------
     // 回答クリック
     //--------------
-    // スマホ以外
-    if (!this.isSmartPhone()) {
-      this.onClickAnswerFunc = (event: MouseEvent) => this.onClickAnswerFuncClick(event)
-      this.canvas!.addEventListener('click', this.onClickAnswerFunc, false)
-      this.onMouseMoveAnswerFunc = (event: MouseEvent) => this.onMouseMoveAnswer(event)
-      this.canvas!.addEventListener('mousemove', this.onMouseMoveAnswerFunc, false)
-    }
-    // スマホ
-    else {
-      this.onClickAnswerFunc = (event: TouchEvent) => this.onClickAnswerFuncTouch(event as TouchEvent)
-      this.canvas!.addEventListener('touchstart', this.onClickAnswerFunc, false)
-    }
+    this.onClickAnswerFunc = (event: MouseEvent) => this.onClickAnswerFuncClick(event)
+    this.canvas!.addEventListener('click', this.onClickAnswerFunc, false)
+    this.onMouseMoveAnswerFunc = (event: MouseEvent) => this.onMouseMoveAnswer(event)
+    this.canvas!.addEventListener('mousemove', this.onMouseMoveAnswerFunc, false)
 
     // 初期描画
     this.draw()
@@ -417,16 +409,6 @@ export class SakanaHen {
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
-    this.checkAnswer(x, y)
-  }
-
-  /**
-   * 回答クリック(スマホ版)
-   */
-  onClickAnswerFuncTouch(event: TouchEvent) {
-    const rect = this.canvas!.getBoundingClientRect()
-    const x = event.touches[0].pageX - rect.left
-    const y = event.touches[0].pageY - rect.top
     this.checkAnswer(x, y)
   }
 
