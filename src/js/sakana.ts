@@ -9,7 +9,7 @@ import { Log } from './log'
 import { LST_SAKANA_HEN } from './dakana_data'
 export class SakanaHen {
   /** フレームレート */
-  FRAME_RATE = 60
+  FRAME_RATE = 90
   /** 寿司移動時間(mS) */
   SUSI_MOVE_TIME = 5000
   /** 当たりはずれウェイト(mS) */
@@ -43,26 +43,26 @@ export class SakanaHen {
 
   /** 画像リスト */
   LST_IMAGES = [
-    ['img_kuman', 'image/ku_man.svg'],
-    ['img_kuman_ok', 'image/ku_man_ok.svg'],
-    ['img_kuman_ng', 'image/ku_man_ng.svg'],
-    ['img_boushi', 'image/boushi.svg'],
-    ['img_table', 'image/table.svg'],
-    ['img_btn_0', 'image/btn_0.svg'],
-    ['img_btn_1', 'image/btn_1.svg'],
-    ['img_ans_ok', 'image/ans_ok.svg'],
-    ['img_ans_ng', 'image/ans_ng.svg'],
-    ['img_sara', 'image/sara.svg'],
-    ['img_yunomi', 'image/yunomi.png'],
+    ['img_kuman', 'ku_man.svg'],
+    ['img_kuman_ok', 'ku_man_ok.svg'],
+    ['img_kuman_ng', 'ku_man_ng.svg'],
+    ['img_boushi', 'boushi.svg'],
+    ['img_table', 'table.svg'],
+    ['img_btn_0', 'btn_0.svg'],
+    ['img_btn_1', 'btn_1.svg'],
+    ['img_ans_ok', 'ans_ok.svg'],
+    ['img_ans_ng', 'ans_ng.svg'],
+    ['img_sara', 'sara.svg'],
+    ['img_yunomi', 'yunomi.png'],
   ]
 
   /** 音声リスト */
   LST_AUDIOS = [
-    ['s_start', 'sound/bgm_coinin_2'],
-    ['s_gameover', 'sound/bgm_gameover_1'],
-    ['s_fanfare', 'sound/bgm_fanfare_1'],
-    ['s_seikai', 'sound/se_quizright_1'],
-    ['s_miss', 'sound/se_quizmistake_1'],
+    ['s_start', 'bgm_coinin_2'],
+    ['s_gameover', 'bgm_gameover_1'],
+    ['s_fanfare', 'bgm_fanfare_1'],
+    ['s_seikai', 'se_quizright_1'],
+    ['s_miss', 'se_quizmistake_1'],
   ]
 
   /** デバッグ処理 */
@@ -185,7 +185,7 @@ export class SakanaHen {
       const image = new Image()
       image.onload = (event) => this.onload(event)
       image.onerror = (event) => this.onerror(event as Event)
-      image.src = item[1]
+      image.src = 'images/' + item[1]
       this.image[item[0]] = image
     })
 
@@ -204,7 +204,7 @@ export class SakanaHen {
 
     if (ext) {
       this.LST_AUDIOS.forEach((item) => {
-        this.sound[item[0]] = new Audio(item[1] + ext)
+        this.sound[item[0]] = new Audio('sounds/' + item[1] + ext)
       })
     }
   }
@@ -271,9 +271,15 @@ export class SakanaHen {
 
     this.ctx!.font = '20px ' + this.FONT_COMMON
     this.ctx!.fillStyle = 'rgb(255,255,255)'
+    this.ctx!.shadowColor = '#555'
+    this.ctx!.shadowOffsetX = 1
+    this.ctx!.shadowOffsetY = 1
     const strStart = '画面' + (this.isSmartPhone() ? 'タップ' : 'クリック') + 'でスタート'
     tm = this.ctx!.measureText(strStart)
     this.ctx!.fillText(strStart, (this.canvas!.width - tm.width) / 2, posY + 52)
+    this.ctx!.shadowColor = ''
+    this.ctx!.shadowOffsetX = 0
+    this.ctx!.shadowOffsetY = 0
 
     //======================
     // スタートボタン処理
@@ -523,7 +529,7 @@ export class SakanaHen {
     /* グラデーション領域をセット */
     const grad = this.ctx!.createLinearGradient(0, 0, 0, this.canvas!.height)
     /* グラデーション終点のオフセットと色をセット */
-    grad.addColorStop(0, 'rgb(255, 255, 0)')
+    grad.addColorStop(0, '#fef9ed')
     grad.addColorStop(0.5, 'rgb(255, 255, 255)')
     /* グラデーションをfillStyleプロパティにセット */
     this.ctx!.fillStyle = grad
