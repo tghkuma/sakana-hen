@@ -695,7 +695,11 @@ export class SakanaHen {
    * @param id サウンドID
    */
   playSound(id: string) {
-    this.sound[id].play()
+    const sound = this.sound[id]
+    // 再生中でも最初から再生しなおすおまじない
+    sound.pause()
+    sound.currentTime = 0
+    sound.play()
   }
 
   /**
