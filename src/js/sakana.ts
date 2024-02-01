@@ -149,7 +149,7 @@ export class SakanaHen {
    *
    * @param canvas_id キャンバスID
    */
-  init(canvas_id: string) {
+  async init(canvas_id: string) {
     Log.info('初期化処理')
 
     this.canvas_id = canvas_id
@@ -181,12 +181,28 @@ export class SakanaHen {
 
     // 画像ファイルロード
     this.image = {}
-    this.LST_IMAGES.forEach((item) => {
-      const image = new Image()
-      image.onload = (event) => this.onload(event)
-      image.onerror = (event) => this.onerror(event as Event)
-      image.src = 'images/' + item[1]
-      this.image[item[0]] = image
+    const printLoadMessage = (event: Event, success: boolean) => {
+      ++this.load_count
+
+      const strMessage = 'ロード' + (success ? '成功' : '失敗') +':' + this.load_count + '/' + this.load_max_count + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
+      Log.info(strMessage)
+      this.ctx!.font = '12px ' + this.FONT_COMMON
+      this.ctx!.fillText(strMessage, 0, 20 + this.load_count * 12)
+    }
+    const promises = this.LST_IMAGES.map((item) => {
+      return new Promise((resolve, reject) => {
+        const image = new Image()
+        image.onload = (event: Event) => {
+          printLoadMessage(event, true)
+          resolve(true)
+        }
+        image.onerror = (event) => {
+          printLoadMessage(event as Event, false)
+          reject()
+        }
+        image.src = 'images/' + item[1]
+        this.image[item[0]] = image
+      })
     })
 
     //----------
@@ -203,41 +219,13 @@ export class SakanaHen {
     // Log.log("音声拡張子:"+ext);
 
     if (ext) {
-      this.LST_AUDIOS.forEach((item) => {
+      this.LST_AUDIOS.map((item) => {
         this.sound[item[0]] = new Audio('sounds/' + item[1] + ext)
       })
     }
-  }
-
-  /**
-   * ロード完了処理
-   */
-  onload(event: Event) {
-    ++this.load_count
-
-    const strMessage = 'ロード成功:' + this.load_count + '/' + this.load_max_count + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
-    Log.info(strMessage)
-    this.ctx!.font = '12px ' + this.FONT_COMMON
-    this.ctx!.fillText(strMessage, 0, 20 + this.load_count * 12)
-
-    // 全ファイルロード成功の時はタイトルへ
-    if (this.load_max_count <= this.load_count && this.load_success) {
-      this.title()
-    }
-  }
-
-  /**
-   * ロード失敗処理
-   */
-  onerror(event: Event) {
-    console.error(event)
-    ++this.load_count
-    this.load_success = false
-
-    const strMessage = 'ロード失敗:' + this.load_count + '/' + this.load_max_count + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
-    Log.warn(strMessage)
-    this.ctx!.font = '12px ' + this.FONT_COMMON
-    this.ctx!.fillText(strMessage, 0, 20 + this.load_count * 12)
+    // 全ロードしたらタイトルへ
+    await Promise.all(promises)
+    this.title()
   }
 
   /**
