@@ -7,6 +7,14 @@
  */
 import { Log } from './log'
 import { LST_SAKANA_HEN } from './dakana_data'
+
+type Rectangle = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export class SakanaHen {
   /** フレームレート */
   FRAME_RATE = 90
@@ -105,6 +113,8 @@ export class SakanaHen {
   /** マウスオーバー処理無名関数退避 */
   onMouseMoveAnswerFunc?: any
 
+  rectAnswers: Rectangle[] = []
+
   /** 魚偏問題リスト */
   listQuiz: any[] = []
   /** 問題番号 */
@@ -128,8 +138,6 @@ export class SakanaHen {
   /** 正解数 */
   hitCount: number = 0
 
-  /**
-   */
   /**
    * コンストラクタ
    *
@@ -184,7 +192,7 @@ export class SakanaHen {
     const printLoadMessage = (event: Event, success: boolean) => {
       ++this.load_count
 
-      const strMessage = 'ロード' + (success ? '成功' : '失敗') +':' + this.load_count + '/' + this.load_max_count + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
+      const strMessage = 'ロード' + (success ? '成功' : '失敗') + ':' + this.load_count + '/' + this.load_max_count + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
       Log.info(strMessage)
       this.ctx!.font = '12px ' + this.FONT_COMMON
       this.ctx!.fillText(strMessage, 0, 20 + this.load_count * 12)
@@ -204,6 +212,23 @@ export class SakanaHen {
         this.image[item[0]] = image
       })
     })
+    await Promise.all(promises)
+
+    //----------
+    // 解答選択位置確定
+    //----------
+    const btnHeight = this.image.btn_0.height
+    const btnWidth = this.image.btn_0.width
+    const lineHeight = btnHeight
+    const startY = this.canvas.height - lineHeight * this.MAX_ANSWER_NO
+    for (let answerNo = 0; answerNo < this.MAX_ANSWER_NO; answerNo++) {
+      this.rectAnswers.push({
+        x: 0,
+        y: startY + lineHeight * answerNo,
+        width: btnWidth,
+        height: btnHeight,
+      })
+    }
 
     //----------
     // 音声ファイル設定
@@ -224,7 +249,6 @@ export class SakanaHen {
       })
     }
     // 全ロードしたらタイトルへ
-    await Promise.all(promises)
     this.title()
   }
 
@@ -411,45 +435,54 @@ export class SakanaHen {
    */
   onMouseMoveAnswer(event: MouseEvent) {
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
-    const y = event.clientY - rect.top
+    // 仮想座標に補正
+    const { x, y } = this.getVPos(event.clientX - rect.left, event.clientY - rect.top)
+    // 回答判定
+    this.canvas!.style.cursor = this.hitNo(this.rectAnswers, x, y) < 0 ? 'default' : 'pointer'
+  }
 
-    let cursor = 'default'
-    const posY = 250
-    if (this.hitWait <= 0 && posY <= y && y < posY + 50 * this.MAX_ANSWER_NO) {
-      cursor = 'pointer'
-    }
-    this.canvas!.style.cursor = cursor
+  getVPos(x: number, y: number) {
+    const rete = this.canvas!.height / this.vHeight
+    return { x: x * rete, y: y * rete }
   }
 
   /**
    * 回答チェック
    *
    * @param _x X座標
-   * @param y Y座標
+   * @param _y Y座標
    */
-  checkAnswer(_x: number, y: number) {
+  checkAnswer(_x: number, _y: number) {
     // 当たり/はずれエフェクト中は何も回答判定しない
     if (0 < this.hitWait) {
       return
     }
 
-    // 仮想サイズに補正
-    y = (y * this.canvas!.height) / this.vHeight
+    // 仮想座標に補正
+    const { x, y } = this.getVPos(_x, _y)
 
     // 回答判定
-    for (let answerNo = 0; answerNo < this.MAX_ANSWER_NO; answerNo++) {
-      const posY = 250 + 50 * answerNo
-      if (posY <= y && y < posY + 50) {
-        this.clickSelectionNo = answerNo
-        // Log.info("選択=" + this.clickSelectionNo);
-
-        const itemQuiz = this.listQuiz[this.quizNo]
-        // あたり/はずれ処理
-        this.setHit(this.clickSelectionNo === itemQuiz.answerNo)
-
-        return
-      }
+    const hitNo = this.hitNo(this.rectAnswers, x, y)
+    if (0 <= hitNo) {
+      this.clickSelectionNo = hitNo
+      // Log.info("選択=" + this.clickSelectionNo);
+      const itemQuiz = this.listQuiz[this.quizNo]
+      // あたり/はずれ処理
+      this.setHit(this.clickSelectionNo === itemQuiz.answerNo)
     }
+  }
+
+
+  /**
+   * あたり判定
+   * @param rects
+   * @param x
+   * @param y
+   */
+  hitNo(rects: Rectangle[], x: number, y: number): number {
+    return rects.findIndex((rect) => {
+      return rect.x <= x && x <= rect.x + rect.width && rect.y <= y && y <= rect.y + rect.height
+    })
   }
 
   /**
@@ -575,13 +608,13 @@ export class SakanaHen {
     // 三択描画
     //----------
     this.ctx!.fillStyle = 'rgb(255,255,255)'
-    this.ctx!.fillRect(0, 250, this.canvas!.width, this.canvas!.height)
+    this.ctx!.fillRect(this.rectAnswers[0].x, this.rectAnswers[0].y, this.canvas!.width, this.canvas!.height)
     for (let answerNo = 0; answerNo < this.MAX_ANSWER_NO; answerNo++) {
-      const posY = 250 + 50 * answerNo
-
+      const posY = this.rectAnswers[answerNo].y
+      const posX = this.rectAnswers[answerNo].x
       // ボタン描画
       const btn = this.clickSelectionNo === answerNo ? this.image.btn_1 : this.image.btn_0
-      this.ctx!.drawImage(btn, 1, posY)
+      this.ctx!.drawImage(btn, posX, posY)
 
       // 回答文字列
       this.ctx!.font = '40px ' + this.FONT_SUSHI
