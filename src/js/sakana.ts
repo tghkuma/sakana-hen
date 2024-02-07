@@ -77,7 +77,7 @@ export class SakanaHen {
   debug = false
 
   /** キャンバスID名 */
-  canvas_id: string | undefined
+  canvasId: string | undefined
   /** キャンバス関連 */
   canvas: HTMLCanvasElement | undefined
   /** キャンバス関連コンテキスト */
@@ -89,16 +89,18 @@ export class SakanaHen {
    */
   vHeight: number = 0
 
+  /** 画像リスト */
   image: {
     [key: string]: HTMLImageElement
   } = {}
   /** 読み込み成功フラグ */
-  load_success: boolean = false
+  loadSuccess: boolean = false
   /** 読み込み中数 */
-  load_count: number = 0
+  loadCount: number = 0
   /** 読み込み最大数 */
-  load_max_count: number = 0
+  loadMaxCount: number = 0
 
+  /** サウンドリスト */
   sound: {
     [key: string]: HTMLAudioElement
   } = {}
@@ -106,7 +108,7 @@ export class SakanaHen {
   /** タイマーID */
   timerId: number | undefined
   /** タイマーカウント */
-  timer_count: number = 0
+  timerCount: number = 0
 
   /** クリック処理無名関数退避 */
   onClickAnswerFunc?: any
@@ -141,29 +143,30 @@ export class SakanaHen {
   /**
    * コンストラクタ
    *
-   * @param canvas_id キャンバスID
+   * @param canvasId キャンバスID
    * @param options
    */
-  constructor(canvas_id: string, options: any) {
+  constructor(canvasId: string, options: any) {
+    // 設定値コピー
     if (options) {
       Object.assign(this, options)
     }
     Log.debug = this.debug
-    this.init(canvas_id)
+    this.init(canvasId)
   }
 
   /**
    * クイズ初期化
    *
-   * @param canvas_id キャンバスID
+   * @param canvasId キャンバスID
    */
-  async init(canvas_id: string) {
+  async init(canvasId: string) {
     Log.info('初期化処理')
 
-    this.canvas_id = canvas_id
+    this.canvasId = canvasId
 
     // canvas要素が無い場合、未対応ブラウザ
-    this.canvas = document.getElementById(canvas_id) as HTMLCanvasElement
+    this.canvas = document.getElementById(canvasId) as HTMLCanvasElement
     if (!this.canvas || !this.canvas!.getContext) {
       alert('本ページの閲覧はHTML5対応ブラウザで行ってください')
       return
@@ -181,21 +184,21 @@ export class SakanaHen {
     //----------
     // 画像ファイルロード
     //----------
-    this.load_success = true
-    this.load_count = 0
-    this.load_max_count = this.LST_IMAGES.length
+    this.loadSuccess = true
+    this.loadCount = 0
+    this.loadMaxCount = this.LST_IMAGES.length
     this.ctx!.font = '12px ' + this.FONT_COMMON
-    this.ctx!.fillText('ロード中:0/' + this.load_max_count, 0, 20)
+    this.ctx!.fillText('ロード中:0/' + this.loadMaxCount, 0, 20)
 
     // 画像ファイルロード
     this.image = {}
     const printLoadMessage = (event: Event, success: boolean) => {
-      ++this.load_count
+      ++this.loadCount
 
-      const strMessage = 'ロード' + (success ? '成功' : '失敗') + ':' + this.load_count + '/' + this.load_max_count + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
+      const strMessage = 'ロード' + (success ? '成功' : '失敗') + ':' + this.loadCount + '/' + this.loadMaxCount + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
       Log.info(strMessage)
       this.ctx!.font = '12px ' + this.FONT_COMMON
-      this.ctx!.fillText(strMessage, 0, 20 + this.load_count * 12)
+      this.ctx!.fillText(strMessage, 0, 20 + this.loadCount * 12)
     }
     const promises = this.LST_IMAGES.map((item) => {
       return new Promise((resolve, reject) => {
@@ -505,7 +508,7 @@ export class SakanaHen {
    */
   timer() {
     // タイマーカウント++
-    this.timer_count++
+    this.timerCount++
 
     if (this.hitWait <= 0) {
       if (--this.moveCountSushi <= 0) {
