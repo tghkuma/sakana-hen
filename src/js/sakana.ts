@@ -229,15 +229,17 @@ export class SakanaHen {
     this.ctx!.font = '30px ' + FONT_SUSHI
     const strTitle = '『さかなへん』クイズ'
     const tmTitle = this.ctx!.measureText(strTitle)
-    const posX = (this.canvas!.width - tmTitle.width) / 2
-    const posY = (this.canvas!.height - 60) / 2
+    const titleWidth = tmTitle.width + 20
+    const titleHeight = 60
+    const posX = (this.canvas!.width - titleWidth) / 2
+    const posY = (this.canvas!.height - titleHeight) / 2
 
     this.ctx!.fillStyle = 'rgba(0,255,0,0.6)'
-    this.ctx!.fillRect(posX, posY, tmTitle.width, 60)
+    this.ctx!.fillRect(posX, posY, titleWidth, titleHeight)
     this.ctx!.fillStyle = 'rgb(255,255,255)'
     this.ctx!.beginPath()
     this.ctx!.strokeStyle = 'rgb(255,255,0)'
-    this.ctx!.rect(posX, posY, tmTitle.width, 60)
+    this.ctx!.rect(posX, posY, titleWidth, titleHeight)
     this.ctx!.stroke()
     this.ctx!.fillStyle = 'rgb(255,0,0)'
     this.ctx!.fillText(strTitle, posX, posY + 30)
@@ -260,7 +262,7 @@ export class SakanaHen {
     this.canvas!.addEventListener(
       'click',
       () => {
-        // alert("開始");
+        // alert('開始')
         this.startGame()
       },
       { once: true },
