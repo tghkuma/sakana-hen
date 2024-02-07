@@ -5,12 +5,12 @@ export const FONT_SUSHI = "'Times New Roman', 'YuMincho', 'Hiragino Mincho ProN'
 
 /**
 * 結果
-* x<=正解数,メッセージ,サウンド
+* 正解率,メッセージ,サウンド
 */
 export const RESULT_INFO: [number, string, string][] = [
-  [10, '大変よくできました', 'fanfare'],
-  [7, 'よくできました', 'fanfare'],
-  [4, 'もう少しです', 'gameover'],
+  [100, '大変よくできました', 'fanfare'],
+  [70, 'よくできました', 'fanfare'],
+  [40, 'もう少しです', 'gameover'],
   [0, 'がんばりましょう', 'gameover'],
 ]
 

@@ -104,6 +104,7 @@ export class SakanaHen {
    * @param options
    */
   constructor(canvasId: string, options: any) {
+    this.debug = import.meta.env.DEV
     // 設定値コピー
     if (options) {
       Object.assign(this, options)
@@ -606,8 +607,9 @@ export class SakanaHen {
     //======================
     // 結果データ
     //======================
+    const result = this.hitCount / this.listQuiz.length * 100
     // @ts-ignore
-    const [_point, strResult, aResult]: [number, string, string] = RESULT_INFO.find((item) => item[0] <= this.hitCount)
+    const [_percent, strResult, aResult]: [number, string, string] = RESULT_INFO.find((item) => item[0] <= result)
 
     // サウンド
     this.playSound(aResult)
