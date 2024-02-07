@@ -5,15 +5,10 @@
  * @copyright 2011-2024 Team-Grasshopper, Inc.
  * @link      https://team-grasshopper.info/
  */
-import { Log } from './log'
-import { LST_SAKANA_HEN } from './dakana_data'
-
-type Rectangle = {
-  x: number
-  y: number
-  width: number
-  height: number
-}
+import { Log } from './libs/log.ts'
+import { LST_SAKANA_HEN } from './consts/dakana_data.ts'
+import { Rectangle } from './types/rectangle.ts'
+import { FONT_COMMON, FONT_SUSHI, LST_AUDIOS, LST_IMAGES, RESULT_INFO } from './consts/def_data.ts'
 
 export class SakanaHen {
   /** フレームレート */
@@ -28,50 +23,12 @@ export class SakanaHen {
   /** キャンバス高さ */
   CANVAS_HEIGHT = 400
 
-  /** 汎用フォント */
-  FONT_COMMON = "'Helvetica Neue', 'Helvetica', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Arial', 'Yu Gothic', 'Meiryo', sans-serif"
-  /** 寿司フォント */
-  FONT_SUSHI = "'Times New Roman', 'YuMincho', 'Hiragino Mincho ProN', 'Yu Mincho', 'MS PMincho', serif"
-
   /** 問題数 */
   MAX_QUIZ_NO = 10
   /** 解答選択数 */
   MAX_ANSWER_NO = 3
 
   /**
-   * 結果
-   * x<=正解数,メッセージ,サウンド
-   */
-  RESULT_INFO: [number, string, string][] = [
-    [10, '大変よくできました', 'fanfare'],
-    [7, 'よくできました', 'fanfare'],
-    [4, 'もう少しです', 'gameover'],
-    [0, 'がんばりましょう', 'gameover'],
-  ]
-
-  /** 画像リスト */
-  LST_IMAGES = [
-    ['kuman', 'ku_man.svg'],
-    ['kuman_ok', 'ku_man_ok.svg'],
-    ['kuman_ng', 'ku_man_ng.svg'],
-    ['boushi', 'boushi.svg'],
-    ['table', 'table.svg'],
-    ['btn_0', 'btn_0.svg'],
-    ['btn_1', 'btn_1.svg'],
-    ['ans_ok', 'ans_ok.svg'],
-    ['ans_ng', 'ans_ng.svg'],
-    ['sara', 'sara.svg'],
-    ['yunomi', 'yunomi.png'],
-  ]
-
-  /** 音声リスト */
-  LST_AUDIOS = [
-    ['start', 'bgm_coinin_2'],
-    ['gameover', 'bgm_gameover_1'],
-    ['fanfare', 'bgm_fanfare_1'],
-    ['seikai', 'se_quizright_1'],
-    ['miss', 'se_quizmistake_1'],
-  ]
 
   /** デバッグ処理 */
   debug = false
@@ -186,8 +143,8 @@ export class SakanaHen {
     //----------
     this.loadSuccess = true
     this.loadCount = 0
-    this.loadMaxCount = this.LST_IMAGES.length
-    this.ctx!.font = '12px ' + this.FONT_COMMON
+    this.loadMaxCount = LST_IMAGES.length
+    this.ctx!.font = '12px ' + FONT_COMMON
     this.ctx!.fillText('ロード中:0/' + this.loadMaxCount, 0, 20)
 
     // 画像ファイルロード
@@ -197,10 +154,10 @@ export class SakanaHen {
 
       const strMessage = 'ロード' + (success ? '成功' : '失敗') + ':' + this.loadCount + '/' + this.loadMaxCount + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
       Log.info(strMessage)
-      this.ctx!.font = '12px ' + this.FONT_COMMON
+      this.ctx!.font = '12px ' + FONT_COMMON
       this.ctx!.fillText(strMessage, 0, 20 + this.loadCount * 12)
     }
-    const promises = this.LST_IMAGES.map((item) => {
+    const promises = LST_IMAGES.map((item) => {
       return new Promise((resolve, reject) => {
         const image = new Image()
         image.onload = (event: Event) => {
@@ -247,7 +204,7 @@ export class SakanaHen {
     // Log.log("音声拡張子:"+ext);
 
     if (ext) {
-      this.LST_AUDIOS.map((item) => {
+      LST_AUDIOS.map((item) => {
         this.sound[item[0]] = new Audio('sounds/' + item[1] + ext)
       })
     }
@@ -269,30 +226,30 @@ export class SakanaHen {
     this.ctx!.drawImage(this.image.yunomi, (this.canvas!.width - this.image.yunomi.width) / 2, (this.canvas!.height - this.image.yunomi.height) / 2)
 
     // 文字
-    this.ctx!.font = '30px ' + this.FONT_SUSHI
+    this.ctx!.font = '30px ' + FONT_SUSHI
     const strTitle = '『さかなへん』クイズ'
-    let tm = this.ctx!.measureText(strTitle)
-    const posX = (this.canvas!.width - tm.width) / 2
+    const tmTitle = this.ctx!.measureText(strTitle)
+    const posX = (this.canvas!.width - tmTitle.width) / 2
     const posY = (this.canvas!.height - 60) / 2
 
     this.ctx!.fillStyle = 'rgba(0,255,0,0.6)'
-    this.ctx!.fillRect(posX, posY, tm.width, 60)
+    this.ctx!.fillRect(posX, posY, tmTitle.width, 60)
     this.ctx!.fillStyle = 'rgb(255,255,255)'
     this.ctx!.beginPath()
     this.ctx!.strokeStyle = 'rgb(255,255,0)'
-    this.ctx!.rect(posX, posY, tm.width, 60)
+    this.ctx!.rect(posX, posY, tmTitle.width, 60)
     this.ctx!.stroke()
     this.ctx!.fillStyle = 'rgb(255,0,0)'
     this.ctx!.fillText(strTitle, posX, posY + 30)
 
-    this.ctx!.font = '20px ' + this.FONT_COMMON
+    this.ctx!.font = '20px ' + FONT_COMMON
     this.ctx!.fillStyle = 'rgb(255,255,255)'
     this.ctx!.shadowColor = '#555'
     this.ctx!.shadowOffsetX = 1
     this.ctx!.shadowOffsetY = 1
     const strStart = '画面' + (this.isSmartPhone() ? 'タップ' : 'クリック') + 'でスタート'
-    tm = this.ctx!.measureText(strStart)
-    this.ctx!.fillText(strStart, (this.canvas!.width - tm.width) / 2, posY + 52)
+    const tmStart = this.ctx!.measureText(strStart)
+    this.ctx!.fillText(strStart, (this.canvas!.width - tmStart.width) / 2, posY + 52)
     this.ctx!.shadowColor = ''
     this.ctx!.shadowOffsetX = 0
     this.ctx!.shadowOffsetY = 0
@@ -457,7 +414,6 @@ export class SakanaHen {
     }
   }
 
-
   /**
    * あたり判定
    * @param rects
@@ -581,7 +537,7 @@ export class SakanaHen {
     if (this.debug) {
       strQuiz += '(' + itemQuiz.answer + ')'
     }
-    this.ctx!.font = '60px ' + this.FONT_SUSHI
+    this.ctx!.font = '60px ' + FONT_SUSHI
     this.ctx!.strokeStyle = 'rgb(255,255,255)'
     this.ctx!.lineWidth = 4
     this.ctx!.strokeText(strQuiz, posX, posY + 55)
@@ -602,7 +558,7 @@ export class SakanaHen {
       this.ctx!.drawImage(btn, posX, posY)
 
       // 回答文字列
-      this.ctx!.font = '40px ' + this.FONT_SUSHI
+      this.ctx!.font = '40px ' + FONT_SUSHI
       this.ctx!.fillStyle = 'rgb(0,0,0)'
       this.ctx!.fillText(itemQuiz.selection[answerNo], 4, posY + 40)
     }
@@ -611,7 +567,7 @@ export class SakanaHen {
     // 当たり/はずれ
     //----------
     if (0 < this.hitWait) {
-      this.ctx!.font = 'bold 80px ' + this.FONT_SUSHI
+      this.ctx!.font = 'bold 80px ' + FONT_SUSHI
       const imgAnswer = this.bHit ? this.image.ans_ok : this.image.ans_ng
       const posY = 120 + (this.hitWait / this.hitWait_org) * 40
       this.ctx!.drawImage(imgAnswer, (this.canvas!.width - imgAnswer.width) / 2, posY)
@@ -622,7 +578,7 @@ export class SakanaHen {
     //----------
     // 問題
     const strQuizNo = '問題:' + (this.quizNo + 1) + '/' + this.listQuiz.length
-    this.ctx!.font = '30px ' + this.FONT_COMMON
+    this.ctx!.font = '30px ' + FONT_COMMON
     this.ctx!.fillStyle = 'rgb(0,0,0)'
     const tm = this.ctx!.measureText(strQuizNo)
     const statusPosX = this.canvas!.width - tm.width
@@ -655,7 +611,7 @@ export class SakanaHen {
     // 結果データ
     //======================
     // @ts-ignore
-    const [_point, strResult, aResult]: [number, string, string] = this.RESULT_INFO.find((item) => item[0] <= this.hitCount)
+    const [_point, strResult, aResult]: [number, string, string] = RESULT_INFO.find((item) => item[0] <= this.hitCount)
 
     // サウンド
     this.playSound(aResult)
@@ -669,7 +625,7 @@ export class SakanaHen {
     const posY = 100
 
     // 文字
-    this.ctx!.font = '30px ' + this.FONT_COMMON
+    this.ctx!.font = '30px ' + FONT_COMMON
     const strTitle = 'ゲームオーバー'
     let tm = this.ctx!.measureText(strTitle)
     let posX = (this.canvas!.width - tm.width) / 2
@@ -689,7 +645,7 @@ export class SakanaHen {
     this.ctx!.fillText(strResult, posX, posY + 60)
 
     // クリック
-    this.ctx!.font = '20px ' + this.FONT_COMMON
+    this.ctx!.font = '20px ' + FONT_COMMON
     this.ctx!.fillStyle = 'rgb(0,0,0)'
     const strStart = '画面' + (this.isSmartPhone() ? 'タップ' : 'クリック') + 'でタイトルへ'
     tm = this.ctx!.measureText(strStart)
