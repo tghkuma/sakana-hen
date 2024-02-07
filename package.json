@@ -1,7 +1,7 @@
 {
   "name": "sakana-hen",
   "version": "0.1",
-  "description": "さかな偏クイズ",
+  "description": "さかな編クイズ",
   "main": "index.js",
   "repository": "https://github.com/tghkuma/sakana-hen.git",
   "author": "tghkuma <info@team-grasshopper.info>",

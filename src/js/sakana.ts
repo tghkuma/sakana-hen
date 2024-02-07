@@ -284,20 +284,16 @@ export class SakanaHen {
     // 問題生成
     //==============
     // データ転記
-    let lst_sakana_hen = JSON.parse(JSON.stringify(LST_SAKANA_HEN))
-    // シャッフル
-    for (let i = 0; i < 100; i++) {
-      const itemNo0 = Math.floor(Math.random() * LST_SAKANA_HEN.length)
-      const itemNo1 = Math.floor(Math.random() * LST_SAKANA_HEN.length)
-      ;[lst_sakana_hen[itemNo0], lst_sakana_hen[itemNo1]] = [lst_sakana_hen[itemNo1], lst_sakana_hen[itemNo0]]
-    }
+    let lst_sakana_hen = LST_SAKANA_HEN.concat()
     // 問題/回答生成
     this.listQuiz = []
     for (let quizNo = 0; quizNo < this.MAX_QUIZ_NO; quizNo++) {
       const answerNo = Math.floor(Math.random() * this.MAX_ANSWER_NO)
       // Log.info("問題" + quizNo + ":" + answerNo);
       const selection: string[] = []
-      const [quiz, answer] = lst_sakana_hen.shift()
+      const item = lst_sakana_hen[Math.floor(Math.random() * lst_sakana_hen.length)]
+      const [quiz, answer] = item
+      lst_sakana_hen = lst_sakana_hen.filter((_item: any) => _item !== item)
       for (let selectNo = 0; selectNo < this.MAX_ANSWER_NO; selectNo++) {
         // 当たり生成
         if (selectNo === answerNo) {
@@ -330,8 +326,6 @@ export class SakanaHen {
         selection: selection,
       })
     }
-    // リソース削除
-    lst_sakana_hen = null
 
     //==============
     // 初期処理
