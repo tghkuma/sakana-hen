@@ -10,28 +10,37 @@ import { LST_SAKANA_HEN } from './consts/dakana_data.ts'
 import { Rectangle } from './types/rectangle.ts'
 import { FONT_COMMON, FONT_SUSHI, LST_AUDIOS, LST_IMAGES, RESULT_INFO } from './consts/def_data.ts'
 
-export class SakanaHen {
-  /** フレームレート */
-  FRAME_RATE = 90
-  /** 寿司移動時間(mS) */
-  SUSI_MOVE_TIME = 5000
-  /** 当たりはずれウェイト(mS) */
-  HIT_WAIT_TIME = 1000
+/**
+ * 難易度情報
+ */
+const LEVEL_INFO = [
+  { name: '初級', sushiMoveTime: 5000, maxQuizNo: 10, maxAnswerNo: 2 },
+  { name: '中級', sushiMoveTime: 4000, maxQuizNo: 10, maxAnswerNo: 3 },
+  { name: '上級', sushiMoveTime: 3000, maxQuizNo: 20, maxAnswerNo: 3 },
+]
 
+export class SakanaHen {
   /** キャンバス幅 */
   CANVAS_WIDTH = 400
   /** キャンバス高さ */
   CANVAS_HEIGHT = 400
 
-  /** 問題数 */
-  MAX_QUIZ_NO = 10
-  /** 解答選択数 */
-  MAX_ANSWER_NO = 3
-
-  /**
+  /** フレームレート */
+  FRAME_RATE = 90
+  /** 当たりはずれウェイト(mS) */
+  HIT_WAIT_TIME = 1000
 
   /** デバッグ処理 */
   debug = false
+
+  /** レベル */
+  level = -1
+  /** 寿司移動時間(mS) */
+  sushiMoveTime = 5000
+  /** 問題数 */
+  maxQuizNo = 10
+  /** 解答選択数 */
+  maxAnswerNo = 3
 
   /** キャンバスID名 */
   canvasId: string | undefined
@@ -66,12 +75,7 @@ export class SakanaHen {
   timerId: number | undefined
   /** タイマーカウント */
   timerCount: number = 0
-
-  /** クリック処理無名関数退避 */
-  onClickAnswerFunc?: any
-  /** マウスオーバー処理無名関数退避 */
-  onMouseMoveAnswerFunc?: any
-
+  /** 解答選択位置 */
   rectAnswers: Rectangle[] = []
 
   /** 魚偏問題リスト */
@@ -181,8 +185,8 @@ export class SakanaHen {
     const btnHeight = this.image.btn_0.height
     const btnWidth = this.image.btn_0.width
     const lineHeight = btnHeight
-    const startY = this.canvas.height - lineHeight * this.MAX_ANSWER_NO
-    for (let answerNo = 0; answerNo < this.MAX_ANSWER_NO; answerNo++) {
+    const startY = this.canvas.height - lineHeight * this.maxAnswerNo
+    for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
       this.rectAnswers.push({
         x: 0,
         y: startY + lineHeight * answerNo,
@@ -231,9 +235,9 @@ export class SakanaHen {
     const strTitle = '『さかなへん』クイズ'
     const tmTitle = this.ctx!.measureText(strTitle)
     const titleWidth = tmTitle.width + 20
-    const titleHeight = 60
+    const titleHeight = 150
     const posX = (this.canvas!.width - titleWidth) / 2
-    const posY = (this.canvas!.height - titleHeight) / 2
+    const posY = (this.canvas!.height - titleHeight) / 2 - 10
 
     this.ctx!.fillStyle = 'rgba(0,255,0,0.6)'
     this.ctx!.fillRect(posX, posY, titleWidth, titleHeight)
@@ -245,29 +249,73 @@ export class SakanaHen {
     this.ctx!.fillStyle = 'rgb(255,0,0)'
     this.ctx!.fillText(strTitle, posX, posY + 30)
 
-    this.ctx!.font = '20px ' + FONT_COMMON
-    this.ctx!.fillStyle = 'rgb(255,255,255)'
-    this.ctx!.shadowColor = '#555'
-    this.ctx!.shadowOffsetX = 1
-    this.ctx!.shadowOffsetY = 1
-    const strStart = '画面' + (this.isSmartPhone() ? 'タップ' : 'クリック') + 'でスタート'
-    const tmStart = this.ctx!.measureText(strStart)
-    this.ctx!.fillText(strStart, (this.canvas!.width - tmStart.width) / 2, posY + 52)
-    this.ctx!.shadowColor = ''
-    this.ctx!.shadowOffsetX = 0
-    this.ctx!.shadowOffsetY = 0
+    const drawLevel = (level?: number) => {
+      this.ctx!.font = '30px ' + FONT_COMMON
+      this.ctx!.shadowColor = '#555'
+      this.ctx!.shadowOffsetX = 1
+      this.ctx!.shadowOffsetY = 1
+      LEVEL_INFO.forEach((item, idx) => {
+        this.ctx!.fillStyle = level != idx ? 'rgb(255,255,255)' : 'rgb(255,0,0)'
+        const strStart = item.name
+        const tmStart = this.ctx!.measureText(strStart)
+        this.ctx!.fillText(strStart, (this.canvas!.width - tmStart.width) / 2, posY + 40 + 32 * (idx + 1))
+      })
+      this.ctx!.shadowColor = ''
+      this.ctx!.shadowOffsetX = 0
+      this.ctx!.shadowOffsetY = 0
+    }
+    drawLevel()
+
+    //======================
+    // スタートボタン領域作成
+    //======================
+    const rectStart = LEVEL_INFO.map((_, index) => {
+      return {
+        x: posX,
+        y: posY + 40 + 32 * index,
+        width: titleWidth,
+        height: 32,
+      }
+    })
 
     //======================
     // スタートボタン処理
     //======================
-    this.canvas!.addEventListener(
-      'click',
-      () => {
-        // alert('開始')
-        this.startGame()
-      },
-      { once: true },
-    )
+    const onClickStart = (event: MouseEvent) => {
+      Log.info('開始')
+      event.preventDefault()
+
+      const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
+      // 仮想座標に補正
+      const { x, y } = this.getVPos(event.clientX - rect.left, event.clientY - rect.top)
+
+      const level = this.hitNo(rectStart, x, y)
+      if (level >= 0) {
+        Log.info('level:' + level)
+        this.canvas!.removeEventListener('click', onClickStart)
+        this.canvas!.removeEventListener('mousemove', onMouseMoveStart)
+
+        const levelInfo = LEVEL_INFO[level]
+        this.sushiMoveTime = levelInfo.sushiMoveTime
+        this.maxQuizNo = levelInfo.maxQuizNo
+        this.maxAnswerNo = levelInfo.maxAnswerNo
+        setTimeout(() => this.startGame(), 1000)
+      }
+    }
+    // マウス移動イベント
+    const onMouseMoveStart = (event: MouseEvent) => {
+      event.preventDefault()
+
+      const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
+      // 仮想座標に補正
+      const { x, y } = this.getVPos(event.clientX - rect.left, event.clientY - rect.top)
+
+      const level = this.hitNo(rectStart, x, y)
+      drawLevel(level)
+      this.canvas!.style.cursor = level < 0 ? 'default' : 'pointer'
+    }
+    this.canvas!.addEventListener('click', onClickStart, false)
+    this.canvas!.addEventListener('mousemove', onMouseMoveStart, false)
   }
 
   /**
@@ -290,14 +338,14 @@ export class SakanaHen {
     let lst_sakana_hen = LST_SAKANA_HEN.concat()
     // 問題/回答生成
     this.listQuiz = []
-    for (let quizNo = 0; quizNo < this.MAX_QUIZ_NO; quizNo++) {
-      const answerNo = Math.floor(Math.random() * this.MAX_ANSWER_NO)
+    for (let quizNo = 0; quizNo < this.maxQuizNo; quizNo++) {
+      const answerNo = Math.floor(Math.random() * this.maxAnswerNo)
       // Log.info("問題" + quizNo + ":" + answerNo);
       const selection: string[] = []
       const item = lst_sakana_hen[Math.floor(Math.random() * lst_sakana_hen.length)]
       const [quiz, answer] = item
       lst_sakana_hen = lst_sakana_hen.filter((_item: any) => _item !== item)
-      for (let selectNo = 0; selectNo < this.MAX_ANSWER_NO; selectNo++) {
+      for (let selectNo = 0; selectNo < this.maxAnswerNo; selectNo++) {
         // 当たり生成
         if (selectNo === answerNo) {
           selection.push(answer)
@@ -337,7 +385,7 @@ export class SakanaHen {
     const interval_time = 1000 / this.FRAME_RATE
 
     // ウェイト値計算/設定
-    this.moveCountSushi_org = this.SUSI_MOVE_TIME / interval_time
+    this.moveCountSushi_org = this.sushiMoveTime / interval_time
     this.hitWait_org = this.HIT_WAIT_TIME / interval_time
 
     // 初期ウェイト値設定
@@ -350,10 +398,8 @@ export class SakanaHen {
     //--------------
     // 回答クリック
     //--------------
-    this.onClickAnswerFunc = (event: MouseEvent) => this.onClickAnswerFuncClick(event)
-    this.canvas!.addEventListener('click', this.onClickAnswerFunc, false)
-    this.onMouseMoveAnswerFunc = (event: MouseEvent) => this.onMouseMoveAnswer(event)
-    this.canvas!.addEventListener('mousemove', this.onMouseMoveAnswerFunc, false)
+    this.canvas!.addEventListener('click', this.onClickAnswer, false)
+    this.canvas!.addEventListener('mousemove', this.onMouseMoveAnswer, false)
 
     // 初期描画
     this.draw()
@@ -362,7 +408,7 @@ export class SakanaHen {
   /**
    * 回答クリック
    */
-  onClickAnswerFuncClick(event: MouseEvent) {
+  onClickAnswer = (event: MouseEvent) => {
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
     const x = event.clientX - rect.left
     const y = event.clientY - rect.top
@@ -372,7 +418,7 @@ export class SakanaHen {
   /**
    * 回答クリック
    */
-  onMouseMoveAnswer(event: MouseEvent) {
+  onMouseMoveAnswer = (event: MouseEvent) => {
     const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
     // 仮想座標に補正
     const { x, y } = this.getVPos(event.clientX - rect.left, event.clientY - rect.top)
@@ -493,7 +539,6 @@ export class SakanaHen {
     grad.addColorStop(0.5, 'rgb(255, 255, 255)')
     /* グラデーションをfillStyleプロパティにセット */
     this.ctx!.fillStyle = grad
-    // this.ctx!.fillStyle = "rgb(255,255,0)";
     this.ctx!.fillRect(0, 0, this.canvas!.width, this.canvas!.height)
 
     //----------
@@ -530,10 +575,7 @@ export class SakanaHen {
 
     // クイズ
     const itemQuiz = this.listQuiz[this.quizNo]
-    let strQuiz = itemQuiz.quiz
-    if (this.debug) {
-      strQuiz += '(' + itemQuiz.answer + ')'
-    }
+    const strQuiz = itemQuiz.quiz
     this.ctx!.font = '60px ' + FONT_SUSHI
     this.ctx!.strokeStyle = 'rgb(255,255,255)'
     this.ctx!.lineWidth = 4
@@ -547,7 +589,7 @@ export class SakanaHen {
     //----------
     this.ctx!.fillStyle = 'rgb(255,255,255)'
     this.ctx!.fillRect(this.rectAnswers[0].x, this.rectAnswers[0].y, this.canvas!.width, this.canvas!.height)
-    for (let answerNo = 0; answerNo < this.MAX_ANSWER_NO; answerNo++) {
+    for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
       const posY = this.rectAnswers[answerNo].y
       const posX = this.rectAnswers[answerNo].x
       // ボタン描画
@@ -599,15 +641,15 @@ export class SakanaHen {
     //--------------
     // 回答クリックイベント削除
     //--------------
-    this.canvas!.removeEventListener('click', this.onClickAnswerFunc)
+    this.canvas!.removeEventListener('click', this.onClickAnswer)
+    this.canvas!.removeEventListener('mousemove', this.onMouseMoveAnswer)
     // マウスカーソルリセット
-    this.canvas!.removeEventListener('mousemove', this.onMouseMoveAnswerFunc)
     this.canvas!.style.cursor = 'default'
 
     //======================
     // 結果データ
     //======================
-    const result = this.hitCount / this.listQuiz.length * 100
+    const result = (this.hitCount / this.listQuiz.length) * 100
     // @ts-ignore
     const [_percent, strResult, aResult]: [number, string, string] = RESULT_INFO.find((item) => item[0] <= result)
 
