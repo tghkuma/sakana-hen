@@ -208,6 +208,9 @@ export class SakanaHen {
     }
     // Log.log("音声拡張子:"+ext);
 
+    // サウンドファイルロード
+    // todo: ロード確定処理実装
+    // addEventListener("loadeddata", () => {})
     if (ext) {
       LST_AUDIOS.map((item) => {
         this.sound[item[0]] = new Audio('sounds/' + item[1] + ext)
@@ -295,11 +298,8 @@ export class SakanaHen {
         this.canvas!.removeEventListener('click', onClickStart)
         this.canvas!.removeEventListener('mousemove', onMouseMoveStart)
 
-        const levelInfo = LEVEL_INFO[level]
-        this.sushiMoveTime = levelInfo.sushiMoveTime
-        this.maxQuizNo = levelInfo.maxQuizNo
-        this.maxAnswerNo = levelInfo.maxAnswerNo
-        setTimeout(() => this.startGame(), 1000)
+        // 音再生
+        this.playSound('start', () => this.startGame(level))
       }
     }
     // マウス移動イベント
@@ -321,13 +321,16 @@ export class SakanaHen {
   /**
    * ゲーム開始処理
    */
-  startGame() {
-    // 音再生
-    this.playSound('start')
-
+  startGame(level = 1) {
     //==============
     // 初期化処理
     //==============
+    // レベル設定
+    const levelInfo = LEVEL_INFO[level]
+    this.sushiMoveTime = levelInfo.sushiMoveTime
+    this.maxQuizNo = levelInfo.maxQuizNo
+    this.maxAnswerNo = levelInfo.maxAnswerNo
+
     this.quizNo = 0
     this.hitCount = 0
 
@@ -707,13 +710,17 @@ export class SakanaHen {
    * サウンド再生
    *
    * @param id サウンドID
+   * @param endFunc 再生終了時のコールバック関数
    */
-  playSound(id: string) {
+  playSound(id: string, endFunc?: Function) {
     const sound = this.sound[id]
     // 再生中でも最初から再生しなおすおまじない
     sound.pause()
     sound.currentTime = 0
     sound.play()
+    if (endFunc) {
+      sound.addEventListener("ended", () => endFunc(), { once: true })
+    }
   }
 
   /**
