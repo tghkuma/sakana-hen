@@ -564,15 +564,15 @@ export class SakanaHen {
     } else {
       imgKuman = this.image.kuman
     }
-    this.ctx!.drawImage(imgKuman, (this.canvas!.width - imgKuman.width) / 2, 290 - imgKuman.height)
+    this.ctx!.drawImage(imgKuman, (this.canvas!.width - imgKuman.width) / 2, 300 - imgKuman.height)
 
     // 帽子
-    this.ctx!.drawImage(this.image.boushi, (this.canvas!.width - this.image.boushi.width) / 2, 25)
+    this.ctx!.drawImage(this.image.boushi, (this.canvas!.width - this.image.boushi.width) / 2, 35)
 
     //----------
     // テーブル
     //----------
-    this.ctx!.drawImage(this.image.table, 0, 160)
+    this.ctx!.drawImage(this.image.table, 0, 170)
 
     //----------
     // 寿司＋さかなへん
@@ -583,7 +583,7 @@ export class SakanaHen {
     //----------
     const marginX = 84
     const posX = ((this.canvas!.width + marginX * 2) / this.moveCountSushi_org) * this.moveCountSushi - marginX
-    const posY = 146
+    const posY = 156
     // 皿
     this.ctx!.drawImage(this.image.sara, posX - 24, posY)
 
