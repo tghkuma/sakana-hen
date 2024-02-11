@@ -16,7 +16,7 @@ import { FONT_COMMON, FONT_SUSHI, LST_AUDIOS, LST_IMAGES, RESULT_INFO } from './
 const LEVEL_INFO = [
   { name: '初級', sushiMoveTime: 5000, maxQuizNo: 10, maxAnswerNo: 2 },
   { name: '中級', sushiMoveTime: 4000, maxQuizNo: 10, maxAnswerNo: 3 },
-  { name: '上級', sushiMoveTime: 3000, maxQuizNo: 20, maxAnswerNo: 3 },
+  { name: '上級', sushiMoveTime: 3000, maxQuizNo: 20, maxAnswerNo: 4 },
 ]
 
 export class SakanaHen {
@@ -180,22 +180,6 @@ export class SakanaHen {
     await Promise.all(promises)
 
     //----------
-    // 解答選択位置確定
-    //----------
-    const btnHeight = this.image.btn_0.height
-    const btnWidth = this.image.btn_0.width
-    const lineHeight = btnHeight
-    const startY = this.canvas.height - lineHeight * this.maxAnswerNo
-    for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
-      this.rectAnswers.push({
-        x: 0,
-        y: startY + lineHeight * answerNo,
-        width: btnWidth,
-        height: btnHeight,
-      })
-    }
-
-    //----------
     // 音声ファイル設定
     //----------
     // サポート拡張子確定
@@ -333,6 +317,33 @@ export class SakanaHen {
 
     this.quizNo = 0
     this.hitCount = 0
+
+    //----------
+    // 解答選択位置確定
+    //----------
+    this.rectAnswers = []
+    const btnHeight = this.image.btn_0.height
+    const btnWidth = this.image.btn_0.width
+    const lineHeight = btnHeight
+
+    const maxCol = 2
+    const maxRow = Math.ceil(this.maxAnswerNo / maxCol)
+    const startY = this.canvas!.height - maxRow * lineHeight
+    let answerNo = 0
+    for (let row = 0; row < maxRow; row++) {
+      for (let col = 0; col < maxCol; col++) {
+        if (answerNo++ >= this.maxAnswerNo) {
+          break
+        }
+        this.rectAnswers.push({
+          x: col * btnWidth,
+          y: startY + lineHeight * row,
+          width: btnWidth,
+          height: btnHeight,
+        })
+      }
+    }
+    Log.info('rectAnswers', this.rectAnswers)
 
     //==============
     // 問題生成
@@ -602,7 +613,7 @@ export class SakanaHen {
       // 回答文字列
       this.ctx!.font = '40px ' + FONT_SUSHI
       this.ctx!.fillStyle = 'rgb(0,0,0)'
-      this.ctx!.fillText(itemQuiz.selection[answerNo], 4, posY + 40)
+      this.ctx!.fillText(itemQuiz.selection[answerNo], posX + 4, posY + 40)
     }
 
     //----------
@@ -652,7 +663,7 @@ export class SakanaHen {
     //======================
     // 結果データ
     //======================
-    const result = (this.hitCount / this.listQuiz.length) * 100
+    const result = Math.round((this.hitCount / this.listQuiz.length) * 100)
     // @ts-ignore
     const [_percent, strResult, aResult]: [number, string, string] = RESULT_INFO.find((item) => item[0] <= result)
 
@@ -676,7 +687,8 @@ export class SakanaHen {
     this.ctx!.fillText(strTitle, posX, posY)
 
     // 正解数
-    const strScore = '正解:' + this.hitCount + '/' + this.listQuiz.length
+    // const strScore = '正解:' + this.hitCount + '/' + this.listQuiz.length
+    const strScore = `正解: ${result}点`
     tm = this.ctx!.measureText(strScore)
     posX = (this.canvas!.width - tm.width) / 2
     this.ctx!.fillText(strScore, posX, posY + 30)
@@ -685,14 +697,14 @@ export class SakanaHen {
     tm = this.ctx!.measureText(strResult)
     posX = (this.canvas!.width - tm.width) / 2
     this.ctx!.fillStyle = 'rgb(0,60,0)'
-    this.ctx!.fillText(strResult, posX, posY + 60)
+    this.ctx!.fillText(strResult, posX, posY + 64)
 
     // クリック
     this.ctx!.font = '20px ' + FONT_COMMON
     this.ctx!.fillStyle = 'rgb(0,0,0)'
     const strStart = '画面' + (this.isSmartPhone() ? 'タップ' : 'クリック') + 'でタイトルへ'
     tm = this.ctx!.measureText(strStart)
-    this.ctx!.fillText(strStart, (this.canvas!.width - tm.width) / 2, posY + 100)
+    this.ctx!.fillText(strStart, (this.canvas!.width - tm.width) / 2, posY + 108)
 
     //======================
     // タイトル遷移処理

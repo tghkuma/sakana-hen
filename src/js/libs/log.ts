@@ -1,20 +1,15 @@
 export class Log {
   static debug = false
 
-  /**
-   * ログ出力
-   *
-   * @param message メッセージ
-   */
-  static info(message: string) {
+  static info(...data: any[]) {
     if (this.debug) {
-      console.log(message)
+      console.log(...data)
     }
   }
-  static warn(message: string) {
-    console.warn(message)
+  static warn(...data: any[]) {
+    console.warn(...data)
   }
-  static error(message: string) {
-    console.error(message)
+  static error(...data: any[]) {
+    console.error(...data)
   }
 }
