@@ -173,7 +173,8 @@ export class SakanaHen {
           printLoadMessage(event as Event, false)
           reject()
         }
-        image.src = 'images/' + item[1]
+        // image.src = 'images/' + item[1]
+        image.src = new URL(`../assets/images/${item[1]}`, import.meta.url).href
         this.image[item[0]] = image
       })
     })
@@ -197,7 +198,8 @@ export class SakanaHen {
     // addEventListener("loadeddata", () => {})
     if (ext) {
       LST_AUDIOS.map((item) => {
-        this.sound[item[0]] = new Audio('sounds/' + item[1] + ext)
+        // this.sound[item[0]] = new Audio('sounds/' + item[1] + ext)
+        this.sound[item[0]] = new Audio(new URL(`../assets/sounds/${item[1]}${ext}`, import.meta.url).href)
       })
     }
     // 全ロードしたらタイトルへ
