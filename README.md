@@ -14,10 +14,11 @@
 +-- src	            Web配置
     | index.html		「さかなへんクイズ」設置サンプル
     +-- js				  JavaScriptファイル
-    +-- public			Web配置用ファイル群
-    |   | .htaccess	svg画像ファイルのContentType設定
-    |   +-- image		画像ファイル群
-    |   +-- sound		サウンドファイル群
+    +-- public			Web配置用生ファイル群
+    |     .htaccess	svg画像ファイルのContentType設定
+    +-- assets			Web配置用アセットファイル群
+    |   +-- images		画像ファイル群
+    |   +-- sounds		サウンドファイル群
     +-- test			  検証用プログラム群
        audio_test.html		サウンド再生テスト
 ```
