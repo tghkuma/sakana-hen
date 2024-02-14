@@ -9,6 +9,7 @@ import { Log } from './libs/log.ts'
 import { LST_SAKANA_HEN } from './consts/dakana_data.ts'
 import { Rectangle } from './types/rectangle.ts'
 import { FONT_COMMON, FONT_SUSHI, LST_AUDIOS, LST_IMAGES, RESULT_INFO } from './consts/def_data.ts'
+import { easeOutExpo } from './libs/easing.ts'
 
 /**
  * 難易度情報
@@ -624,8 +625,11 @@ export class SakanaHen {
     if (0 < this.hitWait) {
       this.ctx!.font = 'bold 80px ' + FONT_SUSHI
       const imgAnswer = this.bHit ? this.image.ans_ok : this.image.ans_ng
-      const posY = 120 + (this.hitWait / this.hitWait_org) * 40
+      const easing = easeOutExpo(this.hitWait_org - this.hitWait, 0, 100, this.hitWait_org)
+      const posY = 170 - (40 * easing) / 100
+      this.ctx!.globalAlpha = easing / 100
       this.ctx!.drawImage(imgAnswer, (this.canvas!.width - imgAnswer.width) / 2, posY)
+      this.ctx!.globalAlpha = 1
     }
 
     //----------
@@ -733,7 +737,7 @@ export class SakanaHen {
     sound.currentTime = 0
     sound.play()
     if (endFunc) {
-      sound.addEventListener("ended", () => endFunc(), { once: true })
+      sound.addEventListener('ended', () => endFunc(), { once: true })
     }
   }
 
