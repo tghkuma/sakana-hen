@@ -12,12 +12,11 @@
   },
   "private": true,
   "dependencies": {
-    "@img/sharp-win32-x64": "^0.33.2",
+    "@img/sharp-win32-x64": "^0.33.5",
     "prettier": "^3.2.4",
-    "sharp": "^0.33.2",
-    "svgo": "^3.2.0",
-    "vite": "^5.0.12",
-    "vite-plugin-image-optimizer": "^1.1.7"
-  },
-  "packageManager": "yarn@4.1.0"
+    "sharp": "^0.33.5",
+    "svgo": "^3.3.2",
+    "vite": "^6.0.3",
+    "vite-plugin-image-optimizer": "^1.1.8"
+  }
 }
