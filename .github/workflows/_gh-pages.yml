@@ -8,7 +8,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
     steps:
@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20.10.0'
+          node-version: '20'
           cache: 'npm'
       - run: npm ci
       - run: npm run build

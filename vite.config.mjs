@@ -1,17 +1,11 @@
 import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
-import { defineConfig, loadEnv } from 'vite'
+import { defineConfig } from 'vite'
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd())
-
-  const htmlPlugin = () => ({
-    name: 'html-transform',
-    transformIndexHtml: (html) => html.replace(/%=(.*?)%/g, (match, p1) => env[p1] ?? match),
-  })
-
   return {
     root: 'src',
     base: './',
+    envDir: '../',
     build: {
       emptyOutDir: true,
       outDir: '../dist',
@@ -28,7 +22,6 @@ export default defineConfig(({ mode }) => {
 */
     },
     plugins: [
-      htmlPlugin(),
       ViteImageOptimizer({
         /* pass your config */
       }),
