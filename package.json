@@ -13,7 +13,6 @@
   },
   "private": true,
   "devDependencies": {
-    "@img/sharp-win32-x64": "^0.33.5",
     "prettier": "^3.2.4",
     "sharp": "^0.33.5",
     "svgo": "^3.3.2",
