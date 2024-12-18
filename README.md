@@ -1,7 +1,12 @@
 # さかなへんクイズについて
 
 ## はじめに
-このドキュメントは、「さかなへんクイズ」について解説しています。
+
+「さかなへんクイズ」は2011年にHTML5+JavaScriptで作成したものを、TypeScriptでリファクタリングしたものです。  
+
+![エビフライトライアングル](resource/sakana-hen.png)
+
+デモサイト [さかなへんクイズ](https://sakana-hen.t-gh.jp/)  
 
 ## ファイル構成
 
@@ -9,9 +14,16 @@
 /
 | README.md		      このファイル
 | package.json		  パッケージ設定ファイル
+| package-lock.json	  パッケージ設定lockファイル
 | vite.config.js	  vite設定ファイル
+| .env.sample         環境変数設定サンプルファイル
+| .env.pgh            環境変数設定Github Pages向けファイル
 |
-+-- src	            Web配置
++-- .github
+| 　+-- workflows
+|         gh-pages.yml GitHub Pages自動デプロイ設定ファイル
+|
++-- src	            ソースコード
     | index.html		「さかなへんクイズ」設置サンプル
     +-- js				  JavaScriptファイル
     +-- public			Web配置用生ファイル群
@@ -31,6 +43,20 @@
 npm install
 ```
 
+Windowsの場合は [@img/sharp-win32-x64](https://www.npmjs.com/package/@img/sharp-win32-x64) もインストールする必要があります。
+
+```
+npm install @img/sharp-win32-x64
+```
+
+### 環境変数設定
+
+.env.sample をコピーして .env ファイルを作成してください。  
+VITE_SITE_URL は、デプロイ先のURLを設定してください。  
+index.html の og:image に設定されます。
+
+```
+
 ### ローカルサーバー起動
 
 ```
@@ -48,13 +74,20 @@ npm run build
 `dist` フォルダ以下にビルドされます。
 
 ## 設置方法
+
 生成後のdistフォルダ以下のファイルを任意のサーバーにアップしてください。
 svgファイルのContentTypeが、サーバーにより設定されていない場合がありますので、
 .htaccessを参考に追加設定を行ってください。
 同様に、oggファイル、mp3ファイルで問題ある場合も、追加設定が必要です。
 
-## カスタマイズポイント
-`sakana.js` の設定関連辺りの変更でカスタマイズできます。
-スマホ向けには、"frame_rate"で動作の重さが変更できると思います。
+### Github Pagesへのデプロイ
 
-さかな偏データ `sakana_data.js` で問題データのカスタマイズができます。
+mainリポジトリにプッシュするとデプロイされます。
+
+
+## カスタマイズポイント
+
+[sakana.js](src/js/sakana.ts) の設定関連辺りの変更でカスタマイズできます。
+スマホ向けには、 `FRAME_RATE` で動作の重さが変更できると思います。
+
+さかなへんデータ [sakana_data.js](src/js/consts/sakana_data.ts) で問題データのカスタマイズができます。
