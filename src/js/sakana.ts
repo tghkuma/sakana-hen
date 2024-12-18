@@ -6,7 +6,7 @@
  * @link      https://team-grasshopper.info/
  */
 import { Log } from './libs/log.ts'
-import { LST_SAKANA_HEN } from './consts/dakana_data.ts'
+import { LST_SAKANA_HEN } from './consts/sakana_data.ts'
 import { Rectangle } from './types/rectangle.ts'
 import { FONT_COMMON, FONT_SUSHI, LST_AUDIOS, LST_IMAGES, RESULT_INFO } from './consts/def_data.ts'
 import { easeOutElastic } from './libs/easing.ts'

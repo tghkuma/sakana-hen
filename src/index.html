@@ -40,6 +40,11 @@ body {
   /** 長押しコピー禁止 */
   -webkit-user-select: none;
 }
+#container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 #id_canvas {
   background-color: #fff0f0;
   /** 選択ハイライト禁止 */
@@ -48,6 +53,7 @@ body {
 </style>
 </head>
 <body>
+<div id="container">
 <header>さかなへんクイズ</header>
 <!-- 描画領域 -->
 <canvas id="id_canvas">
@@ -56,6 +62,7 @@ body {
 <div>
 <input type="button" id="btn_zoom_normal" value="標準" />
 <input type="button" id="btn_zoom_in" value="拡大" />
+</div>
 </div>
 </body>
 </html>
