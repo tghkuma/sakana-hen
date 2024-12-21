@@ -4,7 +4,7 @@
 
 「さかなへんクイズ」は2011年にHTML5+JavaScriptで作成したものを、TypeScriptでリファクタリングしたものです。  
 
-![エビフライトライアングル](resource/sakana-hen.png)
+<img width="400" alt="画面イメージ" src="src/public/images/thumbnail.png">
 
 デモサイト [さかなへんクイズ](https://sakana-hen.t-gh.jp/)  
 
