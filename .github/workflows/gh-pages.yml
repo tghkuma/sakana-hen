@@ -2,8 +2,6 @@ name: GitHub Pages
 
 on:
   push:
-    branches:
-      - release/ghp
 
 jobs:
   build:
@@ -11,17 +9,18 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
       - run: npm ci
       - run: npm run build -- --mode ghp
 
       - name: Upload static files as artifact
+        if: github.ref == 'refs/heads/release/ghp'
         id: deployment
         uses: actions/upload-pages-artifact@v3 # or specific "vX.X.X" version tag for this action
         with:
@@ -29,6 +28,7 @@ jobs:
 
   # Deployment job
   deploy:
+    if: github.ref == 'refs/heads/release/ghp'
     runs-on: ubuntu-latest
     needs: build
 
