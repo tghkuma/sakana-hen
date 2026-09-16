@@ -1,5 +1,6 @@
 import { ViteImageOptimizer } from 'vite-plugin-image-optimizer'
 import { defineConfig } from 'vite'
+import pkg from './package.json' with { type: 'json' }
 
 export default defineConfig(({ mode }) => {
   return {
@@ -22,9 +23,13 @@ export default defineConfig(({ mode }) => {
 */
     },
     plugins: [
-      ViteImageOptimizer({
-        /* pass your config */
-      }),
+      ViteImageOptimizer({/* pass your config */}),
+      {
+        name: 'html-version-inject',
+        transformIndexHtml(html) {
+          return html.replace(/(<[^>]*id=["']version["'][^>]*>)([\s\S]*?)(<\/[^>]+>)/i, `$1${pkg.version}$3`)
+        },
+      },
     ],
   }
 })
