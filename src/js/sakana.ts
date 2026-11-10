@@ -20,16 +20,79 @@ const LEVEL_INFO = [
   { name: '上級', sushiMoveTime: 3000, maxQuizNo: 20, maxAnswerNo: 4 },
 ]
 
+/**
+ * ゲーム状態
+ * - loading:  初期化(画像読み込み)中
+ * - title:    タイトル画面(レベル選択待ち)
+ * - starting: レベル選択後、開始サウンド再生中
+ * - playing:  クイズ進行中
+ * - result:   結果画面
+ * - error:    エラー表示中(以降の操作は受け付けない)
+ */
+type GameState = 'loading' | 'title' | 'starting' | 'playing' | 'result' | 'error'
+
+/** 1問分のクイズ */
+type QuizItem = {
+  /** 問題(漢字) */
+  quiz: string
+  /** 正解(読み) */
+  answer: string
+  /** 正解の選択肢番号 */
+  answerNo: number
+  /** 選択肢 */
+  selection: string[]
+}
+
+/**
+ * 配列をシャッフルした新しい配列を返す (Fisher-Yates)
+ *
+ * @param list 元配列
+ */
+const shuffle = <T>(list: readonly T[]): T[] => {
+  const result = [...list]
+  for (let i = result.length - 1; 0 < i; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
+/**
+ * クイズデータと難易度設定の整合性チェック
+ *
+ * @returns 問題があればエラーメッセージ、無ければ undefined
+ */
+const validateQuizData = (): string | undefined => {
+  const readingCount = new Set(LST_SAKANA_HEN.map(([, reading]) => reading)).size
+  for (const info of LEVEL_INFO) {
+    if (LST_SAKANA_HEN.length < info.maxQuizNo) {
+      return `${info.name}: 問題数(${info.maxQuizNo})が問題データ件数(${LST_SAKANA_HEN.length})を超えています`
+    }
+    if (readingCount < info.maxAnswerNo) {
+      return `${info.name}: 選択肢数(${info.maxAnswerNo})が読みの種類数(${readingCount})を超えています`
+    }
+  }
+  return undefined
+}
+
 export class SakanaHen {
   /** キャンバス幅 */
   CANVAS_WIDTH = 400
   /** キャンバス高さ */
   CANVAS_HEIGHT = 400
 
-  /** フレームレート */
-  FRAME_RATE = 90
   /** 当たりはずれウェイト(mS) */
   HIT_WAIT_TIME = 1000
+  /**
+   * 1フレームで進める最大時間(mS)
+   * タブ非表示等でフレームが止まった場合に、復帰時に時間が一気に進まないようにする
+   */
+  MAX_FRAME_DELTA = 100
+  /**
+   * 終了待ちサウンドの最大待ち時間(mS)
+   * 長さが取得できない/再生できない場合でも処理を先に進めるため
+   */
+  SOUND_END_TIMEOUT = 3000
 
   /** デバッグ処理 */
   debug = false
@@ -50,18 +113,18 @@ export class SakanaHen {
   /** キャンバス関連コンテキスト */
   ctx: CanvasRenderingContext2D | undefined
 
-  /**
-   * 仮想キャンバスの高さ
-   * 拡大縮小時のマウスクリック座標補正に使用
-   */
-  vHeight: number = 0
+  /** ゲーム状態 */
+  state: GameState = 'loading'
+
+  /** タイトル画面のレベル選択領域 */
+  rectLevels: Rectangle[] = []
+  /** タイトル画面でマウスが乗っているレベル (-1:なし) */
+  hoverLevel: number = -1
 
   /** 画像リスト */
   image: {
     [key: string]: HTMLImageElement
   } = {}
-  /** 読み込み成功フラグ */
-  loadSuccess: boolean = false
   /** 読み込み中数 */
   loadCount: number = 0
   /** 読み込み最大数 */
@@ -72,32 +135,30 @@ export class SakanaHen {
     [key: string]: HTMLAudioElement
   } = {}
 
-  /** タイマーID */
-  timerId: number | undefined
-  /** タイマーカウント */
-  timerCount: number = 0
+  /** requestAnimationFrame の ID (ゲーム進行中のみ設定) */
+  animationId: number | undefined
+  /** 前フレームのタイムスタンプ(mS) */
+  lastFrameTime: number | undefined
   /** 解答選択位置 */
   rectAnswers: Rectangle[] = []
 
   /** 魚偏問題リスト */
-  listQuiz: any[] = []
+  listQuiz: QuizItem[] = []
   /** 問題番号 */
   quizNo: number = 0
 
-  /** 寿司移動待ち値(オリジナル) */
-  moveCountSushi_org: number = 0
-  /** 寿司移動待ち値 */
-  moveCountSushi: number = 0
+  /** 寿司移動経過時間(mS) */
+  sushiElapsed: number = 0
 
   /** 選択クリック番号 */
   clickSelectionNo: number | undefined
 
   /** 当たり/はずれ */
   bHit: boolean = false
-  /** 当たりはずれ待ち値(オリジナル) */
-  hitWait_org: number = 0
-  /** 当たりはずれ待ち値 */
-  hitWait: number = 0
+  /** 当たり/はずれエフェクト中 */
+  isHitEffect: boolean = false
+  /** 当たり/はずれエフェクト経過時間(mS) */
+  hitElapsed: number = 0
 
   /** 正解数 */
   hitCount: number = 0
@@ -115,7 +176,31 @@ export class SakanaHen {
       Object.assign(this, options)
     }
     Log.debug = this.debug
-    this.init(canvasId)
+    this.init(canvasId).catch((error) => {
+      Log.error('初期化失敗', error)
+      this.drawErrorMessage('初期化に失敗しました。')
+    })
+  }
+
+  /**
+   * エラーメッセージ描画
+   *
+   * @param message メッセージ
+   * @param hint 対処方法
+   */
+  drawErrorMessage(message: string, hint = 'ページを再読み込みしてください。') {
+    this.state = 'error'
+    if (this.canvas) {
+      this.canvas.style.cursor = 'default'
+    }
+    if (!this.ctx) {
+      return
+    }
+    this.ctx.clearRect(0, 0, this.canvas!.width, this.canvas!.height)
+    this.ctx.font = '16px ' + FONT_COMMON
+    this.ctx.fillStyle = 'rgb(255,0,0)'
+    this.ctx.fillText(message, 10, this.canvas!.height / 2 - 12)
+    this.ctx.fillText(hint, 10, this.canvas!.height / 2 + 12)
   }
 
   /**
@@ -141,13 +226,13 @@ export class SakanaHen {
 
     this.ctx = this.canvas!.getContext('2d')!
 
-    // 仮想座標初期値設定
-    this.vHeight = this.canvas!.height
+    // マウスイベントは1度だけ登録し、状態(state)に応じて処理を振り分ける
+    this.canvas!.addEventListener('click', this.onClick, false)
+    this.canvas!.addEventListener('mousemove', this.onMouseMove, false)
 
     //----------
     // 画像ファイルロード
     //----------
-    this.loadSuccess = true
     this.loadCount = 0
     this.loadMaxCount = LST_IMAGES.length
     this.ctx!.font = '12px ' + FONT_COMMON
@@ -163,8 +248,9 @@ export class SakanaHen {
       this.ctx!.font = '12px ' + FONT_COMMON
       this.ctx!.fillText(strMessage, 0, 20 + this.loadCount * 12)
     }
+    // 失敗しても全画像の結果が出るまで待ち、成否を集計する
     const promises = LST_IMAGES.map((item) => {
-      return new Promise((resolve, reject) => {
+      return new Promise<boolean>((resolve) => {
         const image = new Image()
         image.onload = (event: Event) => {
           printLoadMessage(event, true)
@@ -172,14 +258,20 @@ export class SakanaHen {
         }
         image.onerror = (event) => {
           printLoadMessage(event as Event, false)
-          reject()
+          resolve(false)
         }
-        // image.src = 'images/' + item[1]
         image.src = new URL(`../assets/images/${item[1]}`, import.meta.url).href
         this.image[item[0]] = image
       })
     })
-    await Promise.all(promises)
+    const results = await Promise.all(promises)
+    const failedCount = results.filter((success) => !success).length
+    if (0 < failedCount) {
+      // 読み込めなかった画像は drawImage で例外になるため、ここで止めてエラー表示する
+      Log.error(`画像読み込み失敗: ${failedCount}件`)
+      this.drawErrorMessage(`画像の読み込みに失敗しました(${failedCount}件)。`)
+      return
+    }
 
     //----------
     // 音声ファイル設定
@@ -192,28 +284,112 @@ export class SakanaHen {
     } else if (audio.canPlayType('audio/mpeg')) {
       ext = '.mp3'
     }
-    // Log.log("音声拡張子:"+ext);
-
-    // サウンドファイルロード
-    // todo: ロード確定処理実装
-    // addEventListener("loadeddata", () => {})
+    // サウンドファイル設定
+    // 再生できない環境では this.sound は空のままとし、playSound() 側で無音として扱う
     if (ext) {
-      LST_AUDIOS.map((item) => {
-        // this.sound[item[0]] = new Audio('sounds/' + item[1] + ext)
+      LST_AUDIOS.forEach((item) => {
         this.sound[item[0]] = new Audio(new URL(`../assets/sounds/${item[1]}${ext}`, import.meta.url).href)
       })
+    } else {
+      Log.warn('再生可能な音声形式がありません')
     }
+
+    //----------
+    // クイズデータチェック
+    //----------
+    const dataError = validateQuizData()
+    if (dataError) {
+      Log.error(`クイズデータ不正: ${dataError}`)
+      this.drawErrorMessage('問題データが不足しています。', '詳細はコンソールを確認してください。')
+      return
+    }
+
     // 全ロードしたらタイトルへ
     this.title()
+  }
+
+  /**
+   * マウス座標をキャンバス座標に変換
+   * CSS で拡大縮小されていても、表示サイズと内部解像度の比率から補正する
+   *
+   * @param event マウスイベント
+   */
+  getCanvasPos(event: MouseEvent) {
+    const rect = this.canvas!.getBoundingClientRect()
+    return {
+      x: ((event.clientX - rect.left) * this.canvas!.width) / rect.width,
+      y: ((event.clientY - rect.top) * this.canvas!.height) / rect.height,
+    }
+  }
+
+  /**
+   * クリック処理 (状態ごとに振り分け)
+   */
+  onClick = (event: MouseEvent) => {
+    event.preventDefault()
+    const { x, y } = this.getCanvasPos(event)
+
+    switch (this.state) {
+      case 'title': {
+        const level = this.hitNo(this.rectLevels, x, y)
+        if (0 <= level) {
+          Log.info('開始 level:' + level)
+          // 開始サウンド再生中の多重クリックを防ぐ
+          this.state = 'starting'
+          this.canvas!.style.cursor = 'default'
+          this.playSound('start', () => this.startGame(level))
+        }
+        break
+      }
+      case 'playing':
+        this.checkAnswer(x, y)
+        break
+      case 'result':
+        this.title()
+        break
+    }
+  }
+
+  /**
+   * マウス移動処理 (状態ごとに振り分け)
+   */
+  onMouseMove = (event: MouseEvent) => {
+    const { x, y } = this.getCanvasPos(event)
+
+    let rects: Rectangle[] = []
+    switch (this.state) {
+      case 'title': {
+        rects = this.rectLevels
+        const level = this.hitNo(rects, x, y)
+        // 選択レベルが変わったときだけ再描画
+        if (level !== this.hoverLevel) {
+          this.hoverLevel = level
+          this.drawTitle()
+        }
+        break
+      }
+      case 'playing':
+        rects = this.rectAnswers
+        break
+    }
+    this.canvas!.style.cursor = this.hitNo(rects, x, y) < 0 ? 'default' : 'pointer'
   }
 
   /**
    * タイトル処理
    */
   title() {
-    //======================
-    // スタート画面描画
-    //======================
+    this.state = 'title'
+    this.hoverLevel = -1
+    this.canvas!.style.cursor = 'default'
+    this.drawTitle()
+  }
+
+  /**
+   * タイトル画面描画
+   * レベル選択領域 (rectLevels) もここで確定する
+   */
+  drawTitle() {
     // 背景消去
     this.ctx!.clearRect(0, 0, this.canvas!.width, this.canvas!.height)
 
@@ -239,27 +415,23 @@ export class SakanaHen {
     this.ctx!.fillStyle = 'rgb(255,0,0)'
     this.ctx!.fillText(strTitle, posX, posY + 30)
 
-    const drawLevel = (level?: number) => {
-      this.ctx!.font = '30px ' + FONT_COMMON
-      this.ctx!.shadowColor = '#555'
-      this.ctx!.shadowOffsetX = 1
-      this.ctx!.shadowOffsetY = 1
-      LEVEL_INFO.forEach((item, idx) => {
-        this.ctx!.fillStyle = level != idx ? 'rgb(255,255,255)' : 'rgb(255,0,0)'
-        const strStart = item.name
-        const tmStart = this.ctx!.measureText(strStart)
-        this.ctx!.fillText(strStart, (this.canvas!.width - tmStart.width) / 2, posY + 40 + 32 * (idx + 1))
-      })
-      this.ctx!.shadowColor = ''
-      this.ctx!.shadowOffsetX = 0
-      this.ctx!.shadowOffsetY = 0
-    }
-    drawLevel()
+    // レベル
+    this.ctx!.font = '30px ' + FONT_COMMON
+    this.ctx!.shadowColor = '#555'
+    this.ctx!.shadowOffsetX = 1
+    this.ctx!.shadowOffsetY = 1
+    LEVEL_INFO.forEach((item, idx) => {
+      this.ctx!.fillStyle = this.hoverLevel !== idx ? 'rgb(255,255,255)' : 'rgb(255,0,0)'
+      const strStart = item.name
+      const tmStart = this.ctx!.measureText(strStart)
+      this.ctx!.fillText(strStart, (this.canvas!.width - tmStart.width) / 2, posY + 40 + 32 * (idx + 1))
+    })
+    this.ctx!.shadowColor = 'transparent'
+    this.ctx!.shadowOffsetX = 0
+    this.ctx!.shadowOffsetY = 0
 
-    //======================
-    // スタートボタン領域作成
-    //======================
-    const rectStart = LEVEL_INFO.map((_, index) => {
+    // レベル選択領域
+    this.rectLevels = LEVEL_INFO.map((_, index) => {
       return {
         x: posX,
         y: posY + 40 + 32 * index,
@@ -267,42 +439,6 @@ export class SakanaHen {
         height: 32,
       }
     })
-
-    //======================
-    // スタートボタン処理
-    //======================
-    const onClickStart = (event: MouseEvent) => {
-      Log.info('開始')
-      event.preventDefault()
-
-      const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
-      // 仮想座標に補正
-      const { x, y } = this.getVPos(event.clientX - rect.left, event.clientY - rect.top)
-
-      const level = this.hitNo(rectStart, x, y)
-      if (level >= 0) {
-        Log.info('level:' + level)
-        this.canvas!.removeEventListener('click', onClickStart)
-        this.canvas!.removeEventListener('mousemove', onMouseMoveStart)
-
-        // 音再生
-        this.playSound('start', () => this.startGame(level))
-      }
-    }
-    // マウス移動イベント
-    const onMouseMoveStart = (event: MouseEvent) => {
-      event.preventDefault()
-
-      const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
-      // 仮想座標に補正
-      const { x, y } = this.getVPos(event.clientX - rect.left, event.clientY - rect.top)
-
-      const level = this.hitNo(rectStart, x, y)
-      drawLevel(level)
-      this.canvas!.style.cursor = level < 0 ? 'default' : 'pointer'
-    }
-    this.canvas!.addEventListener('click', onClickStart, false)
-    this.canvas!.addEventListener('mousemove', onMouseMoveStart, false)
   }
 
   /**
@@ -351,117 +487,50 @@ export class SakanaHen {
     //==============
     // 問題生成
     //==============
-    // データ転記
-    let lst_sakana_hen = LST_SAKANA_HEN.concat()
-    // 問題/回答生成
-    this.listQuiz = []
-    for (let quizNo = 0; quizNo < this.maxQuizNo; quizNo++) {
-      const answerNo = Math.floor(Math.random() * this.maxAnswerNo)
-      // Log.info("問題" + quizNo + ":" + answerNo);
-      const selection: string[] = []
-      const item = lst_sakana_hen[Math.floor(Math.random() * lst_sakana_hen.length)]
-      const [quiz, answer] = item
-      lst_sakana_hen = lst_sakana_hen.filter((_item: any) => _item !== item)
-      for (let selectNo = 0; selectNo < this.maxAnswerNo; selectNo++) {
-        // 当たり生成
-        if (selectNo === answerNo) {
-          selection.push(answer)
-        }
-        // はずれ生成
-        else {
-          const getMissItem = () => {
-            while (true) {
-              const missItem = LST_SAKANA_HEN[Math.floor(Math.random() * LST_SAKANA_HEN.length)][1]
-              // 当たりに存在するかチェック
-              if (missItem === answer) {
-                continue
-              }
-              // 問題の中に既に存在するかチェック
-              if (!selection.some((item) => missItem === item)) {
-                return missItem
-              }
-            }
-          }
-          selection.push(getMissItem())
-        }
-      }
-
-      // 問題と回答追加
-      this.listQuiz.push({
-        quiz: quiz,
-        answer: answer,
-        answerNo: answerNo,
-        selection: selection,
+    // データ件数・読みの種類数は init() の validateQuizData() でチェック済み
+    // 読みの一覧 (同じ読みの漢字が複数あっても選択肢が重複しないよう一意化)
+    const readings = [...new Set(LST_SAKANA_HEN.map(([, reading]) => reading))]
+    // 出題する問題をランダムに重複なく選ぶ
+    this.listQuiz = shuffle(LST_SAKANA_HEN)
+      .slice(0, this.maxQuizNo)
+      .map(([quiz, answer]) => {
+        // はずれ: 正解以外の読みからランダムに選ぶ
+        const selection = shuffle(readings.filter((reading) => reading !== answer)).slice(0, this.maxAnswerNo - 1)
+        // 正解をランダムな位置に挿入
+        const answerNo = Math.floor(Math.random() * this.maxAnswerNo)
+        selection.splice(answerNo, 0, answer)
+        return { quiz, answer, answerNo, selection }
       })
-    }
 
     //==============
     // 初期処理
     //==============
-    // タイマー値計算
-    const interval_time = 1000 / this.FRAME_RATE
+    // 経過時間初期化
+    this.sushiElapsed = 0
+    this.isHitEffect = false
+    this.hitElapsed = 0
+    this.clickSelectionNo = undefined
 
-    // ウェイト値計算/設定
-    this.moveCountSushi_org = this.sushiMoveTime / interval_time
-    this.hitWait_org = this.HIT_WAIT_TIME / interval_time
-
-    // 初期ウェイト値設定
-    this.moveCountSushi = this.moveCountSushi_org
-    this.hitWait = 0
-
-    // タイマー設定
-    this.timerId = setInterval(() => this.timer(), 1000 / this.FRAME_RATE)
-
-    //--------------
-    // 回答クリック
-    //--------------
-    this.canvas!.addEventListener('click', this.onClickAnswer, false)
-    this.canvas!.addEventListener('mousemove', this.onMouseMoveAnswer, false)
+    // フレームループ開始
+    this.state = 'playing'
+    this.lastFrameTime = undefined
+    this.animationId = requestAnimationFrame(this.frame)
 
     // 初期描画
     this.draw()
   }
 
   /**
-   * 回答クリック
-   */
-  onClickAnswer = (event: MouseEvent) => {
-    const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
-    const x = event.clientX - rect.left
-    const y = event.clientY - rect.top
-    this.checkAnswer(x, y)
-  }
-
-  /**
-   * 回答クリック
-   */
-  onMouseMoveAnswer = (event: MouseEvent) => {
-    const rect = (event.target as HTMLCanvasElement).getBoundingClientRect()
-    // 仮想座標に補正
-    const { x, y } = this.getVPos(event.clientX - rect.left, event.clientY - rect.top)
-    // 回答判定
-    this.canvas!.style.cursor = this.hitNo(this.rectAnswers, x, y) < 0 ? 'default' : 'pointer'
-  }
-
-  getVPos(x: number, y: number) {
-    const rete = this.canvas!.height / this.vHeight
-    return { x: x * rete, y: y * rete }
-  }
-
-  /**
    * 回答チェック
    *
-   * @param _x X座標
-   * @param _y Y座標
+   * @param x X座標 (キャンバス座標)
+   * @param y Y座標 (キャンバス座標)
    */
-  checkAnswer(_x: number, _y: number) {
+  checkAnswer(x: number, y: number) {
     // 当たり/はずれエフェクト中は何も回答判定しない
-    if (0 < this.hitWait) {
+    if (this.isHitEffect) {
       return
     }
-
-    // 仮想座標に補正
-    const { x, y } = this.getVPos(_x, _y)
 
     // 回答判定
     const hitNo = this.hitNo(this.rectAnswers, x, y)
@@ -492,9 +561,10 @@ export class SakanaHen {
   nextQuiz() {
     // 選択クリア
     this.clickSelectionNo = undefined
+    this.isHitEffect = false
 
     if (this.quizNo < this.listQuiz.length - 1) {
-      this.moveCountSushi = this.moveCountSushi_org
+      this.sushiElapsed = 0
       this.quizNo++
     } else {
       // ゲーム終了
@@ -515,34 +585,50 @@ export class SakanaHen {
     } else {
       this.playSound('miss')
     }
-    // エフェクト時間設定
-    this.hitWait = this.hitWait_org
+    // エフェクト開始
+    this.isHitEffect = true
+    this.hitElapsed = 0
   }
 
   /**
-   * タイマー処理
+   * フレーム処理 (requestAnimationFrame コールバック)
+   *
+   * @param timestamp フレームのタイムスタンプ(mS)
    */
-  timer() {
-    // タイマーカウント++
-    this.timerCount++
+  frame = (timestamp: number) => {
+    // 前フレームからの経過時間 (タブ非表示からの復帰等で一気に進まないよう上限を設ける)
+    const delta = this.lastFrameTime === undefined ? 0 : Math.min(timestamp - this.lastFrameTime, this.MAX_FRAME_DELTA)
+    this.lastFrameTime = timestamp
 
-    if (this.hitWait <= 0) {
-      if (--this.moveCountSushi <= 0) {
-        // はずれ
-        this.setHit(false)
-      }
-    }
-    // あたり/はずれエフェクト終了
-    else if (--this.hitWait <= 0) {
-      this.nextQuiz()
-    }
+    this.update(delta)
 
-    // 処理中にタイマー処理削除されていた場合終了
-    if (this.timerId == null) {
+    // 更新中にゲーム終了した場合は描画・次フレーム予約をしない
+    if (this.animationId === undefined) {
       return
     }
-    // 描画処理
     this.draw()
+    this.animationId = requestAnimationFrame(this.frame)
+  }
+
+  /**
+   * 状態更新
+   *
+   * @param delta 経過時間(mS)
+   */
+  update(delta: number) {
+    if (!this.isHitEffect) {
+      this.sushiElapsed += delta
+      if (this.sushiMoveTime <= this.sushiElapsed) {
+        // 時間切れ: はずれ
+        this.setHit(false)
+      }
+    } else {
+      this.hitElapsed += delta
+      if (this.HIT_WAIT_TIME <= this.hitElapsed) {
+        // あたり/はずれエフェクト終了
+        this.nextQuiz()
+      }
+    }
   }
 
   /**
@@ -562,7 +648,7 @@ export class SakanaHen {
     // くーまん描画処理
     //----------
     let imgKuman: HTMLImageElement
-    if (0 < this.hitWait) {
+    if (this.isHitEffect) {
       imgKuman = this.bHit ? this.image.kuman_ok : this.image.kuman_ng
     } else {
       imgKuman = this.image.kuman
@@ -585,7 +671,9 @@ export class SakanaHen {
     // 背景色
     //----------
     const marginX = 84
-    const posX = ((this.canvas!.width + marginX * 2) / this.moveCountSushi_org) * this.moveCountSushi - marginX
+    // 残り時間の割合 (1:右端 → 0:左端)
+    const remainRate = Math.max(0, 1 - this.sushiElapsed / this.sushiMoveTime)
+    const posX = (this.canvas!.width + marginX * 2) * remainRate - marginX
     const posY = 176
     // 皿
     this.ctx!.drawImage(this.image.sara, posX - 24, posY)
@@ -622,10 +710,10 @@ export class SakanaHen {
     //----------
     // 当たり/はずれ
     //----------
-    if (0 < this.hitWait) {
+    if (this.isHitEffect) {
       this.ctx!.font = 'bold 80px ' + FONT_SUSHI
       const imgAnswer = this.bHit ? this.image.ans_ok : this.image.ans_ng
-      const easing = easeOutElastic(this.hitWait_org - this.hitWait, 0, 100, this.hitWait_org)
+      const easing = easeOutElastic(Math.min(this.hitElapsed, this.HIT_WAIT_TIME), 0, 100, this.HIT_WAIT_TIME)
       const posY = 170 - (40 * easing) / 100
       this.ctx!.globalAlpha = easing / 100
       this.ctx!.drawImage(imgAnswer, (this.canvas!.width - imgAnswer.width) / 2, posY)
@@ -652,17 +740,15 @@ export class SakanaHen {
    * ゲーム終了処理
    */
   endGame() {
-    // タイマー削除
-    if (this.timerId) {
-      clearInterval(this.timerId)
-      this.timerId = undefined
+    // フレームループ停止
+    if (this.animationId !== undefined) {
+      cancelAnimationFrame(this.animationId)
+      this.animationId = undefined
     }
+    this.isHitEffect = false
 
-    //--------------
-    // 回答クリックイベント削除
-    //--------------
-    this.canvas!.removeEventListener('click', this.onClickAnswer)
-    this.canvas!.removeEventListener('mousemove', this.onMouseMoveAnswer)
+    // 結果画面へ (クリックでタイトルへ戻る処理は onClick で行う)
+    this.state = 'result'
     // マウスカーソルリセット
     this.canvas!.style.cursor = 'default'
 
@@ -711,17 +797,6 @@ export class SakanaHen {
     const strStart = '画面' + (this.isSmartPhone() ? 'タップ' : 'クリック') + 'でタイトルへ'
     tm = this.ctx!.measureText(strStart)
     this.ctx!.fillText(strStart, (this.canvas!.width - tm.width) / 2, posY + 108)
-
-    //======================
-    // タイトル遷移処理
-    //======================
-    this.canvas!.addEventListener(
-      'click',
-      () => {
-        this.title()
-      },
-      { once: true },
-    )
   }
 
   /**
@@ -730,15 +805,46 @@ export class SakanaHen {
    * @param id サウンドID
    * @param endFunc 再生終了時のコールバック関数
    */
-  playSound(id: string, endFunc?: Function) {
-    const sound = this.sound[id]
+  playSound(id: string, endFunc?: () => void) {
+    const sound: HTMLAudioElement | undefined = this.sound[id]
+
+    // endFunc は「再生終了」「再生失敗」「タイムアウト」のいずれか最初の1回だけ呼ぶ
+    let finished = false
+    let timeoutId: number | undefined
+    const finish = () => {
+      if (finished) {
+        return
+      }
+      finished = true
+      clearTimeout(timeoutId)
+      sound?.removeEventListener('ended', finish)
+      sound?.removeEventListener('error', finish)
+      endFunc?.()
+    }
+
+    // 音声が使えない環境では無音として即終了扱い
+    if (!sound) {
+      finish()
+      return
+    }
+
     // 再生中でも最初から再生しなおすおまじない
     sound.pause()
     sound.currentTime = 0
-    sound.play()
+
     if (endFunc) {
-      sound.addEventListener('ended', () => endFunc(), { once: true })
+      sound.addEventListener('ended', finish, { once: true })
+      sound.addEventListener('error', finish, { once: true })
+      // 長さが分かればその少し後、分からなければ既定時間でタイムアウト
+      const timeout = Number.isFinite(sound.duration) ? sound.duration * 1000 + 500 : this.SOUND_END_TIMEOUT
+      timeoutId = window.setTimeout(finish, timeout)
     }
+
+    sound.play().catch((error) => {
+      // 自動再生制限・読み込み失敗等
+      Log.warn(`サウンド再生失敗: ${id}`, error)
+      finish()
+    })
   }
 
   /**
