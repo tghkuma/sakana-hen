@@ -15,3 +15,5 @@ dist
 !.yarn/versions
 
 .env*
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
