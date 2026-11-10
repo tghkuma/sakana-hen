@@ -13,7 +13,7 @@ import { SakanaHen } from './js';
 */
 onload = function() {
 	// さかなへんクイズ本体
-	const sakana = new SakanaHen("id_canvas");
+	new SakanaHen("id_canvas");
 
 	//======================
 	// 拡大処理
@@ -23,14 +23,12 @@ onload = function() {
   document.getElementById("btn_zoom_normal").addEventListener('click', () => {
     canvas.style.width = "400px";
     canvas.style.height = "400px";
-    sakana.vHeight = 400;
   });
 
 	// 拡大
   document.getElementById("btn_zoom_in").addEventListener('click', () => {
     canvas.style.width = "600px";
     canvas.style.height = "600px";
-    sakana.vHeight = 600;
   });
 }
 </script>

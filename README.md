@@ -15,9 +15,9 @@
 | README.md		      このファイル
 | package.json		  パッケージ設定ファイル
 | package-lock.json	  パッケージ設定lockファイル
-| vite.config.js	  vite設定ファイル
+| vite.config.mjs	  vite設定ファイル
 | .env.sample         環境変数設定サンプルファイル
-| .env.pgh            環境変数設定Github Pages向けファイル
+| .env.ghp            環境変数設定Github Pages向けファイル
 |
 +-- .github
 | 　+-- workflows
@@ -25,7 +25,7 @@
 |
 +-- src	            ソースコード
     | index.html		「さかなへんクイズ」設置サンプル
-    +-- js				  JavaScriptファイル
+    +-- js				  TypeScriptファイル
     +-- public			Web配置用生ファイル群
     |     .htaccess	svg画像ファイルのContentType設定
     +-- assets			Web配置用アセットファイル群
@@ -71,6 +71,18 @@ npm run build
 
 `dist` フォルダ以下にビルドされます。
 
+GitHub Pages向け（`.env.ghp` を使用）にビルドする場合は以下を実行します。
+
+```
+npm run build -- --mode ghp
+```
+
+ビルド結果は以下で確認できます。
+
+```
+npm run preview
+```
+
 ## 設置方法
 
 生成後のdistフォルダ以下のファイルを任意のサーバーにアップしてください。  
@@ -80,12 +92,17 @@ svgファイルのContentTypeが、サーバーにより設定されていない
 
 ### Github Pagesへのデプロイ
 
-mainリポジトリにプッシュするとデプロイされます。
+`release/ghp` ブランチにプッシュするとデプロイされます。  
+その他のブランチへのプッシュでは、ビルドの確認のみ行われます（デプロイはされません）。
 
 
 ## カスタマイズポイント
 
-[sakana.js](src/js/sakana.ts) の設定関連辺りの変更でカスタマイズできます。
-スマホ向けには、 `FRAME_RATE` で動作の重さが変更できると思います。
+[sakana.ts](src/js/sakana.ts) の設定関連辺りの変更でカスタマイズできます。
 
-さかなへんデータ [sakana_data.js](src/js/consts/sakana_data.ts) で問題データのカスタマイズができます。
+- `LEVEL_INFO` : レベルごとの制限時間・問題数・選択肢数
+- `HIT_WAIT_TIME` : 当たり/はずれ表示時間(mS)
+
+描画は `requestAnimationFrame` で行い、進行は経過時間で計算するため、端末の性能によらず制限時間は一定です。
+
+さかなへんデータ [sakana_data.ts](src/js/consts/sakana_data.ts) で問題データのカスタマイズができます。
