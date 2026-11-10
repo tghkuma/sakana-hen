@@ -78,8 +78,16 @@ const validateQuizData = (): string | undefined => {
 export class SakanaHen {
   /** キャンバス幅 */
   CANVAS_WIDTH = 400
-  /** キャンバス高さ */
-  CANVAS_HEIGHT = 400
+  /**
+   * キャンバス高さ
+   * 変更する場合は index.html の --canvas-aspect (幅/高さ) も合わせること
+   */
+  CANVAS_HEIGHT = 500
+
+  /** 回答ボタンの行間 */
+  ANSWER_ROW_GAP = 14
+  /** 回答ボタン領域の上下余白 */
+  ANSWER_AREA_PADDING = 12
 
   /** 当たりはずれウェイト(mS) */
   HIT_WAIT_TIME = 1000
@@ -137,6 +145,10 @@ export class SakanaHen {
   sound: {
     [key: string]: HTMLAudioElement
   } = {}
+  /** サウンドのアンロック処理済みフラグ */
+  soundsUnlocked: boolean = false
+  /** アンロック(ミュート再生)中のサウンド */
+  unlockingSounds = new Set<HTMLAudioElement>()
 
   /** requestAnimationFrame の ID (ゲーム進行中のみ設定) */
   animationId: number | undefined
@@ -263,6 +275,21 @@ export class SakanaHen {
   }
 
   /**
+   * キャンバスの表示幅が CSS で決まっているか判定する
+   * 内部解像度(width属性)を変えて表示幅が変わらなければ CSS で指定されているとみなす
+   * (CSS で高さを指定しない場合、高さは width/height 属性の比率に従って決まる)
+   */
+  isWidthSizedByCss() {
+    this.canvas.width = this.CANVAS_WIDTH
+    this.canvas.height = this.CANVAS_HEIGHT
+    const before = this.canvas.getBoundingClientRect().width
+    this.canvas.width = this.CANVAS_WIDTH + 1
+    const after = this.canvas.getBoundingClientRect().width
+    this.canvas.width = this.CANVAS_WIDTH
+    return before === after
+  }
+
+  /**
    * クイズ初期化
    */
   async init() {
@@ -271,14 +298,14 @@ export class SakanaHen {
     //----------
     // キャンバスサイズ設定
     //----------
-    // 表示サイズが指定されていなければ論理サイズで表示する
+    // CSS で表示幅が指定されていなければ論理サイズで表示する
     // (内部解像度を上げるため、CSS サイズを固定しないと devicePixelRatio 倍で表示されてしまう)
-    if (!this.canvas.style.width && !this.canvas.style.height) {
+    if (!this.isWidthSizedByCss()) {
       this.canvas.style.width = `${this.CANVAS_WIDTH}px`
       this.canvas.style.height = `${this.CANVAS_HEIGHT}px`
     }
     this.resize()
-    // 表示サイズ変更 (拡大ボタン・ウィンドウサイズ変更等) に追従する
+    // 表示サイズ変更 (画面回転・ウィンドウサイズ変更等) に追従する
     if (typeof ResizeObserver !== 'undefined') {
       new ResizeObserver(() => this.resize()).observe(this.canvas)
     }
@@ -396,6 +423,8 @@ export class SakanaHen {
           // 開始サウンド再生中の多重クリックを防ぐ
           this.state = 'starting'
           this.canvas.style.cursor = 'default'
+          // ユーザー操作中に全サウンドを再生可能にしておく (直後に再生する start は除く)
+          this.unlockSounds('start')
           this.playSound('start', () => this.startGame(level))
         }
         break
@@ -522,11 +551,12 @@ export class SakanaHen {
     this.rectAnswers = []
     const btnHeight = this.image.btn_0.height
     const btnWidth = this.image.btn_0.width
-    const lineHeight = btnHeight
+    const lineHeight = btnHeight + this.ANSWER_ROW_GAP
 
+    // 回答ボタンは画面下部に寄せて配置する (親指で押しやすいように)
     const maxCol = 2
     const maxRow = Math.ceil(this.maxAnswerNo / maxCol)
-    const startY = this.CANVAS_HEIGHT - maxRow * lineHeight
+    const startY = this.CANVAS_HEIGHT - this.ANSWER_AREA_PADDING - (maxRow * btnHeight + (maxRow - 1) * this.ANSWER_ROW_GAP)
     let answerNo = 0
     for (let row = 0; row < maxRow; row++) {
       for (let col = 0; col < maxCol; col++) {
@@ -715,7 +745,8 @@ export class SakanaHen {
     this.ctx.drawImage(imgKuman, (this.CANVAS_WIDTH - imgKuman.width) / 2, 48)
 
     // 帽子
-    this.ctx.drawImage(this.image.boushi, (this.CANVAS_WIDTH - this.image.boushi.width) / 2, 35)
+    // boushi.svg は枠線が切れないよう上下左右に 1px の余白があるため、その分上にずらす
+    this.ctx.drawImage(this.image.boushi, (this.CANVAS_WIDTH - this.image.boushi.width) / 2, 34)
 
     //----------
     // テーブル
@@ -752,7 +783,8 @@ export class SakanaHen {
     // 三択描画
     //----------
     this.ctx.fillStyle = 'rgb(255,255,255)'
-    this.ctx.fillRect(this.rectAnswers[0].x, this.rectAnswers[0].y, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
+    const answerAreaTop = this.rectAnswers[0].y - this.ANSWER_AREA_PADDING
+    this.ctx.fillRect(0, answerAreaTop, this.CANVAS_WIDTH, this.CANVAS_HEIGHT - answerAreaTop)
     for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
       const posY = this.rectAnswers[answerNo].y
       const posX = this.rectAnswers[answerNo].x
@@ -837,7 +869,7 @@ export class SakanaHen {
     // 背景クリア
     this.ctx.clearRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
 
-    const posY = 100
+    const posY = this.CANVAS_HEIGHT / 4
 
     // 文字
     this.ctx.font = '30px ' + FONT_COMMON
@@ -897,6 +929,10 @@ export class SakanaHen {
       return
     }
 
+    // アンロック中のサウンドを再生する場合は、アンロック処理による停止を取り消す
+    this.unlockingSounds.delete(sound)
+    sound.muted = false
+
     // 再生中でも最初から再生しなおすおまじない
     sound.pause()
     sound.currentTime = 0
@@ -913,6 +949,43 @@ export class SakanaHen {
       // 自動再生制限・読み込み失敗等
       Log.warn(`サウンド再生失敗: ${id}`, error)
       finish()
+    })
+  }
+
+  /**
+   * サウンドのアンロック
+   * iOS Safari 等では、音声要素ごとにユーザー操作中に一度再生しないと、
+   * 操作外 (時間切れ・結果画面等) からの play() が拒否される。
+   * 最初のユーザー操作中に全サウンドをミュートで再生してすぐ止めておく。
+   *
+   * @param exceptId 直後に通常再生するため除外するサウンドID
+   */
+  unlockSounds(exceptId?: string) {
+    if (this.soundsUnlocked) {
+      return
+    }
+    this.soundsUnlocked = true
+    Object.entries(this.sound).forEach(([id, sound]) => {
+      if (id === exceptId) {
+        return
+      }
+      this.unlockingSounds.add(sound)
+      sound.muted = true
+      sound
+        .play()
+        .then(() => {
+          // 途中で playSound() により通常再生された場合は止めない
+          if (this.unlockingSounds.delete(sound)) {
+            sound.pause()
+            sound.currentTime = 0
+            sound.muted = false
+          }
+        })
+        .catch(() => {
+          if (this.unlockingSounds.delete(sound)) {
+            sound.muted = false
+          }
+        })
     })
   }
 
