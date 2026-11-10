@@ -107,11 +107,14 @@ export class SakanaHen {
   maxAnswerNo = 3
 
   /** キャンバスID名 */
-  canvasId: string | undefined
+  readonly canvasId: string
   /** キャンバス関連 */
-  canvas: HTMLCanvasElement | undefined
+  readonly canvas: HTMLCanvasElement
   /** キャンバス関連コンテキスト */
-  ctx: CanvasRenderingContext2D | undefined
+  readonly ctx: CanvasRenderingContext2D
+
+  /** エラー表示内容 (再描画用) */
+  errorMessage: { message: string; hint: string } | undefined
 
   /** ゲーム状態 */
   state: GameState = 'loading'
@@ -167,16 +170,31 @@ export class SakanaHen {
    * コンストラクタ
    *
    * @param canvasId キャンバスID
-   * @param options
+   * @param options 設定値の上書き
    */
-  constructor(canvasId: string, options: any) {
+  constructor(canvasId: string, options?: SakanaHenOptions) {
     this.debug = import.meta.env.DEV
     // 設定値コピー
     if (options) {
       Object.assign(this, options)
     }
     Log.debug = this.debug
-    this.init(canvasId).catch((error) => {
+
+    // canvas要素取得
+    const canvas = document.getElementById(canvasId)
+    if (!(canvas instanceof HTMLCanvasElement)) {
+      throw new Error(`canvas要素が見つかりません: #${canvasId}`)
+    }
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      alert('本ページの閲覧はHTML5対応ブラウザで行ってください')
+      throw new Error('2Dコンテキストを取得できません')
+    }
+    this.canvasId = canvasId
+    this.canvas = canvas
+    this.ctx = ctx
+
+    this.init().catch((error) => {
       Log.error('初期化失敗', error)
       this.drawErrorMessage('初期化に失敗しました。')
     })
@@ -190,53 +208,94 @@ export class SakanaHen {
    */
   drawErrorMessage(message: string, hint = 'ページを再読み込みしてください。') {
     this.state = 'error'
-    if (this.canvas) {
-      this.canvas.style.cursor = 'default'
-    }
-    if (!this.ctx) {
+    this.errorMessage = { message, hint }
+    this.canvas.style.cursor = 'default'
+    this.redraw()
+  }
+
+  /**
+   * キャンバスの表示サイズに合わせて内部解像度を設定する
+   * 描画は常に CANVAS_WIDTH x CANVAS_HEIGHT の論理座標で行い、
+   * 表示サイズ × devicePixelRatio の解像度で描くことで拡大表示や高解像度画面でもぼやけないようにする
+   */
+  resize() {
+    const rect = this.canvas.getBoundingClientRect()
+    const displayWidth = rect.width || this.CANVAS_WIDTH
+    const scale = (displayWidth / this.CANVAS_WIDTH) * (window.devicePixelRatio || 1)
+    const width = Math.round(this.CANVAS_WIDTH * scale)
+    const height = Math.round(this.CANVAS_HEIGHT * scale)
+    if (this.canvas.width === width && this.canvas.height === height) {
       return
     }
-    this.ctx.clearRect(0, 0, this.canvas!.width, this.canvas!.height)
-    this.ctx.font = '16px ' + FONT_COMMON
-    this.ctx.fillStyle = 'rgb(255,0,0)'
-    this.ctx.fillText(message, 10, this.canvas!.height / 2 - 12)
-    this.ctx.fillText(hint, 10, this.canvas!.height / 2 + 12)
+    // サイズ変更でキャンバスはクリアされ、コンテキストの状態もリセットされる
+    this.canvas.width = width
+    this.canvas.height = height
+    this.ctx.setTransform(scale, 0, 0, scale, 0, 0)
+    this.redraw()
+  }
+
+  /**
+   * 現在の状態の画面を再描画する
+   */
+  redraw() {
+    switch (this.state) {
+      case 'title':
+      case 'starting':
+        this.drawTitle()
+        break
+      case 'playing':
+        this.draw()
+        break
+      case 'result':
+        this.drawResult()
+        break
+      case 'error':
+        if (this.errorMessage) {
+          const { message, hint } = this.errorMessage
+          this.ctx.clearRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
+          this.ctx.font = '16px ' + FONT_COMMON
+          this.ctx.fillStyle = 'rgb(255,0,0)'
+          this.ctx.fillText(message, 10, this.CANVAS_HEIGHT / 2 - 12)
+          this.ctx.fillText(hint, 10, this.CANVAS_HEIGHT / 2 + 12)
+        }
+        break
+    }
   }
 
   /**
    * クイズ初期化
-   *
-   * @param canvasId キャンバスID
    */
-  async init(canvasId: string) {
+  async init() {
     Log.info('初期化処理')
 
-    this.canvasId = canvasId
-
-    // canvas要素が無い場合、未対応ブラウザ
-    this.canvas = document.getElementById(canvasId) as HTMLCanvasElement
-    if (!this.canvas || !this.canvas!.getContext) {
-      alert('本ページの閲覧はHTML5対応ブラウザで行ってください')
-      return
-    }
-
+    //----------
     // キャンバスサイズ設定
-    this.canvas!.width = this.CANVAS_WIDTH
-    this.canvas!.height = this.CANVAS_HEIGHT
-
-    this.ctx = this.canvas!.getContext('2d')!
+    //----------
+    // 表示サイズが指定されていなければ論理サイズで表示する
+    // (内部解像度を上げるため、CSS サイズを固定しないと devicePixelRatio 倍で表示されてしまう)
+    if (!this.canvas.style.width && !this.canvas.style.height) {
+      this.canvas.style.width = `${this.CANVAS_WIDTH}px`
+      this.canvas.style.height = `${this.CANVAS_HEIGHT}px`
+    }
+    this.resize()
+    // 表示サイズ変更 (拡大ボタン・ウィンドウサイズ変更等) に追従する
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => this.resize()).observe(this.canvas)
+    }
+    // ブラウザのズーム等で devicePixelRatio だけ変わる場合
+    window.addEventListener('resize', () => this.resize())
 
     // マウスイベントは1度だけ登録し、状態(state)に応じて処理を振り分ける
-    this.canvas!.addEventListener('click', this.onClick, false)
-    this.canvas!.addEventListener('mousemove', this.onMouseMove, false)
+    this.canvas.addEventListener('click', this.onClick, false)
+    this.canvas.addEventListener('mousemove', this.onMouseMove, false)
 
     //----------
     // 画像ファイルロード
     //----------
     this.loadCount = 0
     this.loadMaxCount = LST_IMAGES.length
-    this.ctx!.font = '12px ' + FONT_COMMON
-    this.ctx!.fillText('ロード中:0/' + this.loadMaxCount, 0, 20)
+    this.ctx.font = '12px ' + FONT_COMMON
+    this.ctx.fillText('ロード中:0/' + this.loadMaxCount, 0, 20)
 
     // 画像ファイルロード
     this.image = {}
@@ -245,8 +304,8 @@ export class SakanaHen {
 
       const strMessage = 'ロード' + (success ? '成功' : '失敗') + ':' + this.loadCount + '/' + this.loadMaxCount + '[' + (event.target as HTMLImageElement).getAttribute('src') + ']'
       Log.info(strMessage)
-      this.ctx!.font = '12px ' + FONT_COMMON
-      this.ctx!.fillText(strMessage, 0, 20 + this.loadCount * 12)
+      this.ctx.font = '12px ' + FONT_COMMON
+      this.ctx.fillText(strMessage, 0, 20 + this.loadCount * 12)
     }
     // 失敗しても全画像の結果が出るまで待ち、成否を集計する
     const promises = LST_IMAGES.map((item) => {
@@ -315,10 +374,10 @@ export class SakanaHen {
    * @param event マウスイベント
    */
   getCanvasPos(event: MouseEvent) {
-    const rect = this.canvas!.getBoundingClientRect()
+    const rect = this.canvas.getBoundingClientRect()
     return {
-      x: ((event.clientX - rect.left) * this.canvas!.width) / rect.width,
-      y: ((event.clientY - rect.top) * this.canvas!.height) / rect.height,
+      x: ((event.clientX - rect.left) * this.CANVAS_WIDTH) / rect.width,
+      y: ((event.clientY - rect.top) * this.CANVAS_HEIGHT) / rect.height,
     }
   }
 
@@ -336,7 +395,7 @@ export class SakanaHen {
           Log.info('開始 level:' + level)
           // 開始サウンド再生中の多重クリックを防ぐ
           this.state = 'starting'
-          this.canvas!.style.cursor = 'default'
+          this.canvas.style.cursor = 'default'
           this.playSound('start', () => this.startGame(level))
         }
         break
@@ -372,7 +431,7 @@ export class SakanaHen {
         rects = this.rectAnswers
         break
     }
-    this.canvas!.style.cursor = this.hitNo(rects, x, y) < 0 ? 'default' : 'pointer'
+    this.canvas.style.cursor = this.hitNo(rects, x, y) < 0 ? 'default' : 'pointer'
   }
 
   /**
@@ -381,7 +440,7 @@ export class SakanaHen {
   title() {
     this.state = 'title'
     this.hoverLevel = -1
-    this.canvas!.style.cursor = 'default'
+    this.canvas.style.cursor = 'default'
     this.drawTitle()
   }
 
@@ -391,44 +450,44 @@ export class SakanaHen {
    */
   drawTitle() {
     // 背景消去
-    this.ctx!.clearRect(0, 0, this.canvas!.width, this.canvas!.height)
+    this.ctx.clearRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
 
     // 湯呑
-    this.ctx!.drawImage(this.image.yunomi, (this.canvas!.width - this.image.yunomi.width) / 2, (this.canvas!.height - this.image.yunomi.height) / 2)
+    this.ctx.drawImage(this.image.yunomi, (this.CANVAS_WIDTH - this.image.yunomi.width) / 2, (this.CANVAS_HEIGHT - this.image.yunomi.height) / 2)
 
     // 文字
-    this.ctx!.font = '30px ' + FONT_SUSHI
+    this.ctx.font = '30px ' + FONT_SUSHI
     const strTitle = '『さかなへん』クイズ'
-    const tmTitle = this.ctx!.measureText(strTitle)
+    const tmTitle = this.ctx.measureText(strTitle)
     const titleWidth = tmTitle.width + 20
     const titleHeight = 150
-    const posX = (this.canvas!.width - titleWidth) / 2
-    const posY = (this.canvas!.height - titleHeight) / 2 - 10
+    const posX = (this.CANVAS_WIDTH - titleWidth) / 2
+    const posY = (this.CANVAS_HEIGHT - titleHeight) / 2 - 10
 
-    this.ctx!.fillStyle = 'rgba(0,255,0,0.6)'
-    this.ctx!.fillRect(posX, posY, titleWidth, titleHeight)
-    this.ctx!.fillStyle = 'rgb(255,255,255)'
-    this.ctx!.beginPath()
-    this.ctx!.strokeStyle = 'rgb(255,255,0)'
-    this.ctx!.rect(posX, posY, titleWidth, titleHeight)
-    this.ctx!.stroke()
-    this.ctx!.fillStyle = 'rgb(255,0,0)'
-    this.ctx!.fillText(strTitle, posX, posY + 30)
+    this.ctx.fillStyle = 'rgba(0,255,0,0.6)'
+    this.ctx.fillRect(posX, posY, titleWidth, titleHeight)
+    this.ctx.fillStyle = 'rgb(255,255,255)'
+    this.ctx.beginPath()
+    this.ctx.strokeStyle = 'rgb(255,255,0)'
+    this.ctx.rect(posX, posY, titleWidth, titleHeight)
+    this.ctx.stroke()
+    this.ctx.fillStyle = 'rgb(255,0,0)'
+    this.ctx.fillText(strTitle, posX, posY + 30)
 
     // レベル
-    this.ctx!.font = '30px ' + FONT_COMMON
-    this.ctx!.shadowColor = '#555'
-    this.ctx!.shadowOffsetX = 1
-    this.ctx!.shadowOffsetY = 1
+    this.ctx.font = '30px ' + FONT_COMMON
+    this.ctx.shadowColor = '#555'
+    this.ctx.shadowOffsetX = 1
+    this.ctx.shadowOffsetY = 1
     LEVEL_INFO.forEach((item, idx) => {
-      this.ctx!.fillStyle = this.hoverLevel !== idx ? 'rgb(255,255,255)' : 'rgb(255,0,0)'
+      this.ctx.fillStyle = this.hoverLevel !== idx ? 'rgb(255,255,255)' : 'rgb(255,0,0)'
       const strStart = item.name
-      const tmStart = this.ctx!.measureText(strStart)
-      this.ctx!.fillText(strStart, (this.canvas!.width - tmStart.width) / 2, posY + 40 + 32 * (idx + 1))
+      const tmStart = this.ctx.measureText(strStart)
+      this.ctx.fillText(strStart, (this.CANVAS_WIDTH - tmStart.width) / 2, posY + 40 + 32 * (idx + 1))
     })
-    this.ctx!.shadowColor = 'transparent'
-    this.ctx!.shadowOffsetX = 0
-    this.ctx!.shadowOffsetY = 0
+    this.ctx.shadowColor = 'transparent'
+    this.ctx.shadowOffsetX = 0
+    this.ctx.shadowOffsetY = 0
 
     // レベル選択領域
     this.rectLevels = LEVEL_INFO.map((_, index) => {
@@ -467,7 +526,7 @@ export class SakanaHen {
 
     const maxCol = 2
     const maxRow = Math.ceil(this.maxAnswerNo / maxCol)
-    const startY = this.canvas!.height - maxRow * lineHeight
+    const startY = this.CANVAS_HEIGHT - maxRow * lineHeight
     let answerNo = 0
     for (let row = 0; row < maxRow; row++) {
       for (let col = 0; col < maxCol; col++) {
@@ -636,13 +695,13 @@ export class SakanaHen {
    */
   draw() {
     /* グラデーション領域をセット */
-    const grad = this.ctx!.createLinearGradient(0, 0, 0, this.canvas!.height)
+    const grad = this.ctx.createLinearGradient(0, 0, 0, this.CANVAS_HEIGHT)
     /* グラデーション終点のオフセットと色をセット */
     grad.addColorStop(0, '#fef9ed')
     grad.addColorStop(0.5, 'rgb(255, 255, 255)')
     /* グラデーションをfillStyleプロパティにセット */
-    this.ctx!.fillStyle = grad
-    this.ctx!.fillRect(0, 0, this.canvas!.width, this.canvas!.height)
+    this.ctx.fillStyle = grad
+    this.ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
 
     //----------
     // くーまん描画処理
@@ -653,15 +712,15 @@ export class SakanaHen {
     } else {
       imgKuman = this.image.kuman
     }
-    this.ctx!.drawImage(imgKuman, (this.canvas!.width - imgKuman.width) / 2, 48)
+    this.ctx.drawImage(imgKuman, (this.CANVAS_WIDTH - imgKuman.width) / 2, 48)
 
     // 帽子
-    this.ctx!.drawImage(this.image.boushi, (this.canvas!.width - this.image.boushi.width) / 2, 35)
+    this.ctx.drawImage(this.image.boushi, (this.CANVAS_WIDTH - this.image.boushi.width) / 2, 35)
 
     //----------
     // テーブル
     //----------
-    this.ctx!.drawImage(this.image.table, 0, 180)
+    this.ctx.drawImage(this.image.table, 0, 180)
 
     //----------
     // 寿司＋さかなへん
@@ -673,51 +732,51 @@ export class SakanaHen {
     const marginX = 84
     // 残り時間の割合 (1:右端 → 0:左端)
     const remainRate = Math.max(0, 1 - this.sushiElapsed / this.sushiMoveTime)
-    const posX = (this.canvas!.width + marginX * 2) * remainRate - marginX
+    const posX = (this.CANVAS_WIDTH + marginX * 2) * remainRate - marginX
     const posY = 176
     // 皿
-    this.ctx!.drawImage(this.image.sara, posX - 24, posY)
+    this.ctx.drawImage(this.image.sara, posX - 24, posY)
 
     // クイズ
     const itemQuiz = this.listQuiz[this.quizNo]
     const strQuiz = itemQuiz.quiz
-    this.ctx!.font = '60px ' + FONT_SUSHI
-    this.ctx!.strokeStyle = 'rgb(255,255,255)'
-    this.ctx!.lineWidth = 4
-    this.ctx!.strokeText(strQuiz, posX, posY + 55)
-    this.ctx!.lineWidth = 1
-    this.ctx!.fillStyle = 'rgb(0,0,0)'
-    this.ctx!.fillText(strQuiz, posX, posY + 55)
+    this.ctx.font = '60px ' + FONT_SUSHI
+    this.ctx.strokeStyle = 'rgb(255,255,255)'
+    this.ctx.lineWidth = 4
+    this.ctx.strokeText(strQuiz, posX, posY + 55)
+    this.ctx.lineWidth = 1
+    this.ctx.fillStyle = 'rgb(0,0,0)'
+    this.ctx.fillText(strQuiz, posX, posY + 55)
 
     //----------
     // 三択描画
     //----------
-    this.ctx!.fillStyle = 'rgb(255,255,255)'
-    this.ctx!.fillRect(this.rectAnswers[0].x, this.rectAnswers[0].y, this.canvas!.width, this.canvas!.height)
+    this.ctx.fillStyle = 'rgb(255,255,255)'
+    this.ctx.fillRect(this.rectAnswers[0].x, this.rectAnswers[0].y, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
     for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
       const posY = this.rectAnswers[answerNo].y
       const posX = this.rectAnswers[answerNo].x
       // ボタン描画
       const btn = this.clickSelectionNo === answerNo ? this.image.btn_1 : this.image.btn_0
-      this.ctx!.drawImage(btn, posX, posY)
+      this.ctx.drawImage(btn, posX, posY)
 
       // 回答文字列
-      this.ctx!.font = '40px ' + FONT_SUSHI
-      this.ctx!.fillStyle = 'rgb(0,0,0)'
-      this.ctx!.fillText(itemQuiz.selection[answerNo], posX + 4, posY + 40)
+      this.ctx.font = '40px ' + FONT_SUSHI
+      this.ctx.fillStyle = 'rgb(0,0,0)'
+      this.ctx.fillText(itemQuiz.selection[answerNo], posX + 4, posY + 40)
     }
 
     //----------
     // 当たり/はずれ
     //----------
     if (this.isHitEffect) {
-      this.ctx!.font = 'bold 80px ' + FONT_SUSHI
+      this.ctx.font = 'bold 80px ' + FONT_SUSHI
       const imgAnswer = this.bHit ? this.image.ans_ok : this.image.ans_ng
       const easing = easeOutElastic(Math.min(this.hitElapsed, this.HIT_WAIT_TIME), 0, 100, this.HIT_WAIT_TIME)
       const posY = 170 - (40 * easing) / 100
-      this.ctx!.globalAlpha = easing / 100
-      this.ctx!.drawImage(imgAnswer, (this.canvas!.width - imgAnswer.width) / 2, posY)
-      this.ctx!.globalAlpha = 1
+      this.ctx.globalAlpha = easing / 100
+      this.ctx.drawImage(imgAnswer, (this.CANVAS_WIDTH - imgAnswer.width) / 2, posY)
+      this.ctx.globalAlpha = 1
     }
 
     //----------
@@ -725,15 +784,15 @@ export class SakanaHen {
     //----------
     // 問題
     const strQuizNo = '問題:' + (this.quizNo + 1) + '/' + this.listQuiz.length
-    this.ctx!.font = '30px ' + FONT_COMMON
-    this.ctx!.fillStyle = 'rgb(0,0,0)'
-    const tm = this.ctx!.measureText(strQuizNo)
-    const statusPosX = this.canvas!.width - tm.width
-    this.ctx!.fillText(strQuizNo, statusPosX, 30)
+    this.ctx.font = '30px ' + FONT_COMMON
+    this.ctx.fillStyle = 'rgb(0,0,0)'
+    const tm = this.ctx.measureText(strQuizNo)
+    const statusPosX = this.CANVAS_WIDTH - tm.width
+    this.ctx.fillText(strQuizNo, statusPosX, 30)
 
     // 正解数
     const strScore = '正解:' + this.hitCount
-    this.ctx!.fillText(strScore, statusPosX, 60)
+    this.ctx.fillText(strScore, statusPosX, 60)
   }
 
   /**
@@ -750,53 +809,63 @@ export class SakanaHen {
     // 結果画面へ (クリックでタイトルへ戻る処理は onClick で行う)
     this.state = 'result'
     // マウスカーソルリセット
-    this.canvas!.style.cursor = 'default'
-
-    //======================
-    // 結果データ
-    //======================
-    const result = Math.round((this.hitCount / this.listQuiz.length) * 100)
-    // @ts-ignore
-    const [_percent, strResult, aResult]: [number, string, string] = RESULT_INFO.find((item) => item[0] <= result)
+    this.canvas.style.cursor = 'default'
 
     // サウンド
-    this.playSound(aResult)
+    this.playSound(this.getResultInfo().sound)
 
-    //======================
     // ゲームオーバー画面描画
-    //======================
+    this.drawResult()
+  }
+
+  /**
+   * 結果情報取得
+   */
+  getResultInfo() {
+    const score = Math.round((this.hitCount / this.listQuiz.length) * 100)
+    // RESULT_INFO は正解率の降順。末尾(0%)は必ず一致するが、念のため末尾をフォールバックにする
+    const [, message, sound] = RESULT_INFO.find(([percent]) => percent <= score) ?? RESULT_INFO[RESULT_INFO.length - 1]
+    return { score, message, sound }
+  }
+
+  /**
+   * 結果画面描画
+   */
+  drawResult() {
+    const { score: result, message: strResult } = this.getResultInfo()
+
     // 背景クリア
-    this.ctx!.clearRect(0, 0, this.canvas!.width, this.canvas!.height)
+    this.ctx.clearRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
 
     const posY = 100
 
     // 文字
-    this.ctx!.font = '30px ' + FONT_COMMON
+    this.ctx.font = '30px ' + FONT_COMMON
     const strTitle = 'ゲームオーバー'
-    let tm = this.ctx!.measureText(strTitle)
-    let posX = (this.canvas!.width - tm.width) / 2
-    this.ctx!.fillStyle = 'rgb(255,0,0)'
-    this.ctx!.fillText(strTitle, posX, posY)
+    let tm = this.ctx.measureText(strTitle)
+    let posX = (this.CANVAS_WIDTH - tm.width) / 2
+    this.ctx.fillStyle = 'rgb(255,0,0)'
+    this.ctx.fillText(strTitle, posX, posY)
 
     // 正解数
     // const strScore = '正解:' + this.hitCount + '/' + this.listQuiz.length
     const strScore = `正解: ${result}点`
-    tm = this.ctx!.measureText(strScore)
-    posX = (this.canvas!.width - tm.width) / 2
-    this.ctx!.fillText(strScore, posX, posY + 30)
+    tm = this.ctx.measureText(strScore)
+    posX = (this.CANVAS_WIDTH - tm.width) / 2
+    this.ctx.fillText(strScore, posX, posY + 30)
 
     // 結果
-    tm = this.ctx!.measureText(strResult)
-    posX = (this.canvas!.width - tm.width) / 2
-    this.ctx!.fillStyle = 'rgb(0,60,0)'
-    this.ctx!.fillText(strResult, posX, posY + 64)
+    tm = this.ctx.measureText(strResult)
+    posX = (this.CANVAS_WIDTH - tm.width) / 2
+    this.ctx.fillStyle = 'rgb(0,60,0)'
+    this.ctx.fillText(strResult, posX, posY + 64)
 
     // クリック
-    this.ctx!.font = '20px ' + FONT_COMMON
-    this.ctx!.fillStyle = 'rgb(0,0,0)'
-    const strStart = '画面' + (this.isSmartPhone() ? 'タップ' : 'クリック') + 'でタイトルへ'
-    tm = this.ctx!.measureText(strStart)
-    this.ctx!.fillText(strStart, (this.canvas!.width - tm.width) / 2, posY + 108)
+    this.ctx.font = '20px ' + FONT_COMMON
+    this.ctx.fillStyle = 'rgb(0,0,0)'
+    const strStart = '画面' + (this.isTouchDevice() ? 'タップ' : 'クリック') + 'でタイトルへ'
+    tm = this.ctx.measureText(strStart)
+    this.ctx.fillText(strStart, (this.CANVAS_WIDTH - tm.width) / 2, posY + 108)
   }
 
   /**
@@ -848,9 +917,15 @@ export class SakanaHen {
   }
 
   /**
-   * スマホ判断
+   * タッチ操作が主の端末か判断
+   * UA 判定では iPadOS (Mac として名乗る) を判別できないため、ポインターの種類で判断する
    */
-  isSmartPhone() {
-    return navigator.userAgent.indexOf('iPhone') > 0 || navigator.userAgent.indexOf('iPod') > 0 || navigator.userAgent.indexOf('iPad') > 0 || navigator.userAgent.indexOf('Android') > 0
+  isTouchDevice() {
+    return window.matchMedia?.('(pointer: coarse)').matches ?? false
   }
 }
+
+/**
+ * コンストラクタで上書き可能な設定値
+ */
+export type SakanaHenOptions = Partial<Pick<SakanaHen, 'CANVAS_WIDTH' | 'CANVAS_HEIGHT' | 'HIT_WAIT_TIME' | 'MAX_FRAME_DELTA' | 'SOUND_END_TIMEOUT' | 'debug'>>

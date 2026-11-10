@@ -42,7 +42,8 @@ npx prettier --write src/js    # 整形 (.prettierrc: セミコロンなし・�
 - **クイズデータ**: `src/js/consts/sakana_data.ts`（`[漢字, 読み]` の配列）。画像・音声のファイルリスト、結果メッセージ、フォントは `src/js/consts/def_data.ts`。
 - **アセット読み込み**: `new URL(\`../assets/...\`, import.meta.url)` で Vite のアセット解決を利用する。新しい画像・音声は `src/assets/` に置き `def_data.ts` のリストに追加する。音声は OGG 優先、非対応ブラウザでは MP3 にフォールバックするため両形式を用意する。
 - **状態管理**: `state`（`loading` / `title` / `starting` / `playing` / `result` / `error`）で画面を管理する。canvas の `click` / `mousemove` リスナーは `init()` で 1 度だけ登録し、`onClick` / `onMouseMove` が `state` で処理を振り分ける。画面ごとにリスナーを付け外ししないこと。
-- **座標補正**: `getCanvasPos()` が `getBoundingClientRect()` の表示サイズと canvas の内部解像度の比率からキャンバス座標に変換する。CSS でどう拡大縮小しても埋め込み側で補正値を設定する必要はない。
+- **論理座標と解像度**: 描画・当たり判定はすべて `CANVAS_WIDTH` x `CANVAS_HEIGHT`（400x400）の論理座標で行う。`this.canvas.width/height` は表示サイズ × `devicePixelRatio` の内部解像度なので、描画コードで論理サイズとして使わないこと。`resize()` が `ResizeObserver` で表示サイズ変更に追従して内部解像度と `setTransform` を更新し、`redraw()` で現在の画面を描き直す。
+- **座標補正**: `getCanvasPos()` が `getBoundingClientRect()` の表示サイズと論理サイズの比率からキャンバス座標に変換する。CSS でどう拡大縮小しても埋め込み側で補正値を設定する必要はない。
 - **データ検証**: `init()` で `validateQuizData()` が `LEVEL_INFO` とクイズデータの整合（問題数 ≦ データ件数、選択肢数 ≦ 読みの種類数）をチェックし、不足ならエラー表示して停止する。
 - **デバッグログ**: `debug` フラグは `import.meta.env.DEV` で初期化され、`Log.info()` は開発モード時のみ出力される。
 
