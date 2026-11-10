@@ -2,10 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta property="og:image" content="%VITE_SITE_URL%/images/thumbnail.png">
 <title>「さかなへん」クイズ</title>
-<script type="module" src="js/index.ts"></script>
 <script type="module">
 import { SakanaHen } from './js';
 /**
@@ -14,54 +13,70 @@ import { SakanaHen } from './js';
 onload = function() {
 	// さかなへんクイズ本体
 	new SakanaHen("id_canvas");
-
-	//======================
-	// 拡大処理
-	//======================
-  const canvas = document.getElementById("id_canvas");
-	// 通常
-  document.getElementById("btn_zoom_normal").addEventListener('click', () => {
-    canvas.style.width = "400px";
-    canvas.style.height = "400px";
-  });
-
-	// 拡大
-  document.getElementById("btn_zoom_in").addEventListener('click', () => {
-    canvas.style.width = "600px";
-    canvas.style.height = "600px";
-  });
 }
 </script>
 <style>
+:root {
+  /** 最大表示幅 (タブレット・PC 向け) */
+  --canvas-max-width: 600px;
+  /** キャンバスの縦横比 (幅/高さ)。sakana.ts の CANVAS_WIDTH / CANVAS_HEIGHT と合わせること */
+  --canvas-aspect: 0.8;
+  /** ノッチ等を除いた表示可能領域 */
+  --safe-width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+  --safe-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+}
+/** ブラウザのツールバー表示/非表示に追従する dvh が使える場合はそちらを使う */
+@supports (height: 100dvh) {
+  :root {
+    --safe-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  }
+}
 body {
   margin: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   /** 長押しコピー禁止 */
   -webkit-user-select: none;
+  user-select: none;
 }
+/** キャンバスを画面の上下左右中央に配置する */
 #container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--safe-height);
 }
 #id_canvas {
+  display: block;
+  /**
+   * 縦横比を保ったまま、画面幅・画面高さ・最大幅に収まる最大サイズで表示する
+   * 内部解像度・クリック座標は表示サイズに合わせてスクリプト側で自動補正される
+   */
+  width: min(var(--safe-width), calc(var(--safe-height) * var(--canvas-aspect)), var(--canvas-max-width));
+  height: auto;
+  aspect-ratio: var(--canvas-aspect);
   background-color: #fff0f0;
+  /** ダブルタップによる拡大を抑止 */
+  touch-action: manipulation;
   /** 選択ハイライト禁止 */
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
+#version {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: transparent;
+  pointer-events: none;
 }
 </style>
 </head>
 <body>
 <div id="container">
-<header>さかなへんクイズ</header>
 <!-- 描画領域 -->
 <canvas id="id_canvas">
 非対応ブラウザです。
 </canvas>
-<div>
-<input type="button" id="btn_zoom_normal" value="標準" />
-<input type="button" id="btn_zoom_in" value="拡大" />
-</div>
-<div id="version" style="color: transparent">x.xx</div>
+<div id="version">x.xx</div>
 </div>
 </body>
 </html>

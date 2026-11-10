@@ -9,7 +9,9 @@
   "scripts": {
     "build": "vite build",
     "preview": "vite preview",
-    "dev": "vite dev"
+    "preview:host": "vite preview --host",
+    "dev": "vite dev",
+    "dev:host": "vite dev --host"
   },
   "private": true,
   "devDependencies": {
