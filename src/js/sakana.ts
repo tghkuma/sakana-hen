@@ -202,6 +202,17 @@ export class SakanaHen {
   /** サウンド */
   soundPlayer = new SoundPlayer()
 
+  /** 論理座標 1 あたりの内部解像度のピクセル数 (表示倍率 × devicePixelRatio。resize() で設定) */
+  pixelScale = 1
+  /**
+   * 描画済みレイヤーのキャッシュ (種類ごとに 1 枚)
+   * ゲーム画面で毎フレーム図形を描くと古いスマホでは間に合わずガタつくため、
+   * 動かない部分や形の変わらない部分は事前に画像にしておき drawImage で貼るだけにする
+   */
+  layerCache = new Map<string, { key: string; canvas: HTMLCanvasElement }>()
+  /** ゲーム番号 (おかわりで問題が変わったときに背景を描き直すため) */
+  gameId = 0
+
   /** requestAnimationFrame の ID (ゲーム進行中のみ設定) */
   animationId: number | undefined
   /** 前フレームのタイムスタンプ(mS) */
@@ -292,6 +303,8 @@ export class SakanaHen {
       return
     }
     // サイズ変更でキャンバスはクリアされ、コンテキストの状態もリセットされる
+    // (レイヤーのキャッシュは pixelScale をキーに含めているので、次の描画で作り直される)
+    this.pixelScale = scale
     this.canvas.width = width
     this.canvas.height = height
     this.ctx.setTransform(scale, 0, 0, scale, 0, 0)
@@ -689,12 +702,12 @@ export class SakanaHen {
   /**
    * 壁 (背景) 描画
    */
-  drawWall() {
-    const grad = this.ctx.createLinearGradient(0, 0, 0, this.CANVAS_HEIGHT)
+  drawWall(ctx = this.ctx) {
+    const grad = ctx.createLinearGradient(0, 0, 0, this.CANVAS_HEIGHT)
     grad.addColorStop(0, COLOR.wallTop)
     grad.addColorStop(1, COLOR.wallBottom)
-    this.ctx.fillStyle = grad
-    this.ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
   }
 
   /**
@@ -713,6 +726,7 @@ export class SakanaHen {
 
     this.quizNo = 0
     this.hitCount = 0
+    this.gameId++
 
     //----------
     // 解答選択位置確定
@@ -894,32 +908,25 @@ export class SakanaHen {
   }
 
   /**
-   * 描画処理
+   * 描画処理 (毎フレーム)
+   *
+   * 古いスマホでも間に合うよう、毎フレームの処理は事前に描いたレイヤーを drawImage で貼るだけにする
+   * (影・切り抜き・曲線などの図形を毎フレーム描くとガタつく)
+   *   背景 (壁・くーまん・テーブル・回答の板・黒板) → ベルトの継ぎ目 → 皿と木札 → 当たり/はずれ
+   * 皿と木札は回答の板・黒板と重ならないので、それらを背景に含めても重なり順は変わらない
    */
   draw() {
-    // 壁と品書き
-    this.drawWall()
-    this.drawWallMenu()
+    const ctx = this.ctx
 
     //----------
-    // くーまん描画処理
+    // 背景 (状態が変わったときだけ描き直す)
     //----------
-    let imgKuman: HTMLImageElement
-    if (this.isHitEffect) {
-      imgKuman = this.bHit ? this.image.kuman_ok : this.image.kuman_ng
-    } else {
-      imgKuman = this.image.kuman
-    }
-    this.ctx.drawImage(imgKuman, (this.CANVAS_WIDTH - imgKuman.width) / 2, this.KUMAN_Y)
-
-    // 帽子
-    // boushi.svg は枠線が切れないよう上下左右に 1px の余白があるため、その分上にずらす
-    this.ctx.drawImage(this.image.boushi, (this.CANVAS_WIDTH - this.image.boushi.width) / 2, this.KUMAN_Y - 14)
-
-    //----------
-    // テーブル (ネタケース・レーン・カウンター)
-    //----------
-    this.ctx.drawImage(this.image.table, 0, this.TABLE_Y)
+    const background = this.getGameBackground()
+    ctx.save()
+    // 内部解像度と同じ大きさなので、拡大縮小せず等倍で貼る
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.drawImage(background, 0, 0)
+    ctx.restore()
 
     //----------
     // 寿司＋さかなへん
@@ -929,39 +936,14 @@ export class SakanaHen {
     const remainRate = Math.max(0, 1 - this.sushiElapsed / this.sushiMoveTime)
     const posX = (this.CANVAS_WIDTH + marginX * 2) * remainRate - marginX
 
-    // ベルトの継ぎ目 (皿と一緒に流れて見えるよう、皿の位置に合わせてずらす)
-    this.drawBelt(posX)
+    // ベルトの継ぎ目 (皿と一緒に流れて見えるよう、皿の位置に合わせて継ぎ目 1 つ分の範囲でずらす)
+    const seg = this.BELT_SEGMENT
+    const offset = ((posX % seg) + seg) % seg
+    this.drawLayer(this.getBeltLayer(), offset - seg - this.BELT_LAYER_PAD, this.TABLE_Y + this.LANE_OFFSET)
 
     // 皿 (皿の底がレーンに乗る位置) と、その上に立てた漢字の木札
-    const itemQuiz = this.listQuiz[this.quizNo]
-    this.drawQuizPlate(posX + 30, this.TABLE_Y + this.LANE_OFFSET + 22, itemQuiz.quiz)
-
-    //----------
-    // 回答 (品書き板)
-    //----------
-    for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
-      const rect = this.rectAnswers[answerNo]
-      const selected = this.clickSelectionNo === answerNo
-      const hover = !selected && this.hoverAnswer === answerNo && !this.isHitEffect
-      // 選択中は押し込まれたように少し下げて影を小さくする
-      const offsetY = selected ? 2 : 0
-      drawWoodBoard(this.ctx, rect.x, rect.y + offsetY, rect.width, rect.height, selected ? WOOD_SELECTED : hover ? WOOD_HOVER : WOOD_LIGHT, {
-        radius: 6,
-        shadow: selected ? 1 : 4,
-        borderWidth: selected ? 3 : 2.5,
-      })
-
-      // 回答文字列 (板の中央に。長い場合は縮小)
-      const text = itemQuiz.selection[answerNo]
-      const size = fitFontSize(this.ctx, text, rect.width - 24, 34, FONT_SUSHI, 'bold')
-      this.ctx.font = `bold ${size}px ${FONT_SUSHI}`
-      this.ctx.fillStyle = selected ? COLOR.vermilion : COLOR.ink
-      this.ctx.textAlign = 'center'
-      this.ctx.textBaseline = 'middle'
-      this.ctx.fillText(text, rect.x + rect.width / 2, rect.y + offsetY + rect.height / 2 + 2)
-      this.ctx.textAlign = 'start'
-      this.ctx.textBaseline = 'alphabetic'
-    }
+    const plate = this.getQuizPlateLayer()
+    this.drawLayer(plate, posX + 30 - this.PLATE_LAYER_CX, this.TABLE_Y + this.LANE_OFFSET + 22 - this.PLATE_LAYER_BOTTOM)
 
     //----------
     // 当たり/はずれ
@@ -970,22 +952,195 @@ export class SakanaHen {
       const imgAnswer = this.bHit ? this.image.ans_ok : this.image.ans_ng
       const easing = easeOutElastic(Math.min(this.hitElapsed, this.HIT_WAIT_TIME), 0, 100, this.HIT_WAIT_TIME)
       const posY = this.TABLE_Y - 10 - (40 * easing) / 100
-      this.ctx.globalAlpha = easing / 100
-      this.ctx.drawImage(imgAnswer, (this.CANVAS_WIDTH - imgAnswer.width) / 2, posY)
-      this.ctx.globalAlpha = 1
+      ctx.globalAlpha = easing / 100
+      this.drawLayer(this.getImageLayer(imgAnswer), (this.CANVAS_WIDTH - imgAnswer.width) / 2, posY)
+      ctx.globalAlpha = 1
     }
+  }
 
-    //----------
-    // ステータス (壁に掛けた黒板)
-    //----------
-    this.drawStatusBoard()
+  //----------
+  // 描画済みレイヤー
+  //----------
+  /** 皿と木札のレイヤーの大きさ */
+  PLATE_LAYER_WIDTH = 124
+  PLATE_LAYER_HEIGHT = 120
+  /** 皿と木札のレイヤー内の、皿の中心X・皿の底Y */
+  PLATE_LAYER_CX = 62
+  PLATE_LAYER_BOTTOM = 112
+  /** ベルトのレイヤーの左余白 (左端の継ぎ目の線が切れないように) */
+  BELT_LAYER_PAD = 2
+
+  /**
+   * 現在の内部解像度でレイヤー(オフスクリーンキャンバス)を作り、論理座標で描画する
+   *
+   * @param width 幅 (論理座標)
+   * @param height 高さ (論理座標)
+   * @param drawFunc 描画処理
+   */
+  createLayer(width: number, height: number, drawFunc: (ctx: CanvasRenderingContext2D) => void) {
+    const scale = this.pixelScale
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.ceil(width * scale))
+    canvas.height = Math.max(1, Math.ceil(height * scale))
+    const ctx = canvas.getContext('2d')
+    if (ctx) {
+      ctx.setTransform(scale, 0, 0, scale, 0, 0)
+      drawFunc(ctx)
+    }
+    return canvas
+  }
+
+  /**
+   * キャッシュしたレイヤーを返す (キーが変わったときだけ作り直す)
+   *
+   * @param slot レイヤーの種類
+   * @param key 内容を表すキー
+   * @param create 作成処理
+   */
+  getLayer(slot: string, key: string, create: () => HTMLCanvasElement) {
+    const fullKey = `${key}|${this.pixelScale}`
+    const cached = this.layerCache.get(slot)
+    if (cached && cached.key === fullKey) {
+      return cached.canvas
+    }
+    const canvas = create()
+    this.layerCache.set(slot, { key: fullKey, canvas })
+    return canvas
+  }
+
+  /**
+   * レイヤーを論理座標に等倍で貼る
+   *
+   * @param layer レイヤー
+   * @param x X座標
+   * @param y Y座標
+   */
+  drawLayer(layer: HTMLCanvasElement, x: number, y: number) {
+    this.ctx.drawImage(layer, x, y, layer.width / this.pixelScale, layer.height / this.pixelScale)
+  }
+
+  /**
+   * ゲーム画面の背景 (動かない部分) のレイヤー
+   * くーまんの表情・問題番号・正解数・回答の板の状態が変わったときだけ描き直す
+   */
+  getGameBackground() {
+    const imgKuman = this.isHitEffect ? (this.bHit ? this.image.kuman_ok : this.image.kuman_ng) : this.image.kuman
+    const hover = this.isHitEffect ? -1 : this.hoverAnswer
+    const key = [this.gameId, this.quizNo, this.hitCount, imgKuman.src, this.clickSelectionNo ?? -1, hover].join('|')
+    return this.getLayer('background', key, () =>
+      this.createLayer(this.CANVAS_WIDTH, this.CANVAS_HEIGHT, (ctx) => {
+        // 壁と品書き
+        this.drawWall(ctx)
+        this.drawWallMenu(ctx)
+
+        // くーまん
+        ctx.drawImage(imgKuman, (this.CANVAS_WIDTH - imgKuman.width) / 2, this.KUMAN_Y)
+        // 帽子
+        // boushi.svg は枠線が切れないよう上下左右に 1px の余白があるため、その分上にずらす
+        ctx.drawImage(this.image.boushi, (this.CANVAS_WIDTH - this.image.boushi.width) / 2, this.KUMAN_Y - 14)
+
+        // テーブル (ネタケース・レーン・カウンター)
+        ctx.drawImage(this.image.table, 0, this.TABLE_Y)
+
+        // 回答 (品書き板)
+        this.drawAnswers(ctx, hover)
+
+        // ステータス (壁に掛けた黒板)
+        this.drawStatusBoard(ctx)
+      }),
+    )
+  }
+
+  /**
+   * ベルトの継ぎ目のレイヤー (画面幅 + 継ぎ目 1 つ分)
+   * 継ぎ目 1 つ分の範囲でずらして貼ることで、流れているように見せる
+   */
+  getBeltLayer() {
+    const seg = this.BELT_SEGMENT
+    const pad = this.BELT_LAYER_PAD
+    const width = this.CANVAS_WIDTH + seg * 2 + pad
+    const h = this.LANE_HEIGHT
+    return this.getLayer('belt', '', () =>
+      this.createLayer(width, h, (ctx) => {
+        for (let x = pad; x < width; x += seg) {
+          // 三日月形のプレートの継ぎ目
+          ctx.beginPath()
+          ctx.moveTo(x, 0)
+          ctx.quadraticCurveTo(x + 9, h / 2, x, h)
+          ctx.strokeStyle = 'rgba(105, 55, 15, 0.55)'
+          ctx.lineWidth = 2
+          ctx.stroke()
+          ctx.beginPath()
+          ctx.moveTo(x + 2.5, 0)
+          ctx.quadraticCurveTo(x + 11.5, h / 2, x + 2.5, h)
+          ctx.strokeStyle = 'rgba(255, 235, 200, 0.45)'
+          ctx.lineWidth = 1.2
+          ctx.stroke()
+        }
+      }),
+    )
+  }
+
+  /**
+   * 問題の皿 (皿＋漢字の木札) のレイヤー
+   * 左右に動くだけで形は変わらないので、問題が変わったときだけ描き直す
+   */
+  getQuizPlateLayer() {
+    const quiz = this.listQuiz[this.quizNo].quiz
+    return this.getLayer('plate', quiz, () =>
+      this.createLayer(this.PLATE_LAYER_WIDTH, this.PLATE_LAYER_HEIGHT, (ctx) => {
+        this.drawQuizPlate(this.PLATE_LAYER_CX, this.PLATE_LAYER_BOTTOM, quiz, ctx)
+      }),
+    )
+  }
+
+  /**
+   * 画像 (SVG) を現在の内部解像度で画像にしたレイヤー
+   * SVG を毎フレーム拡大して描くと、ブラウザによってはその都度ベクターから描き直されて重いため
+   *
+   * @param img 画像
+   */
+  getImageLayer(img: HTMLImageElement) {
+    return this.getLayer(`image:${img.src}`, '', () => this.createLayer(img.width, img.height, (ctx) => ctx.drawImage(img, 0, 0)))
+  }
+
+  /**
+   * 回答 (品書き板) 描画
+   *
+   * @param ctx コンテキスト
+   * @param hoverAnswer マウスが乗っている回答 (-1:なし)
+   */
+  drawAnswers(ctx: CanvasRenderingContext2D, hoverAnswer: number) {
+    const itemQuiz = this.listQuiz[this.quizNo]
+    for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
+      const rect = this.rectAnswers[answerNo]
+      const selected = this.clickSelectionNo === answerNo
+      const hover = !selected && hoverAnswer === answerNo
+      // 選択中は押し込まれたように少し下げて影を小さくする
+      const offsetY = selected ? 2 : 0
+      drawWoodBoard(ctx, rect.x, rect.y + offsetY, rect.width, rect.height, selected ? WOOD_SELECTED : hover ? WOOD_HOVER : WOOD_LIGHT, {
+        radius: 6,
+        shadow: selected ? 1 : 4,
+        borderWidth: selected ? 3 : 2.5,
+      })
+
+      // 回答文字列 (板の中央に。長い場合は縮小)
+      const text = itemQuiz.selection[answerNo]
+      const size = fitFontSize(ctx, text, rect.width - 24, 34, FONT_SUSHI, 'bold')
+      ctx.font = `bold ${size}px ${FONT_SUSHI}`
+      ctx.fillStyle = selected ? COLOR.vermilion : COLOR.ink
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(text, rect.x + rect.width / 2, rect.y + offsetY + rect.height / 2 + 2)
+      ctx.textAlign = 'start'
+      ctx.textBaseline = 'alphabetic'
+    }
   }
 
   /**
    * 壁の品書き (飾り) 描画
    */
-  drawWallMenu() {
-    const ctx = this.ctx
+  drawWallMenu(ctx = this.ctx) {
     // 梁
     ctx.fillStyle = COLOR.beam
     ctx.fillRect(0, 0, this.CANVAS_WIDTH, 8)
@@ -1012,8 +1167,7 @@ export class SakanaHen {
   /**
    * ステータス (問題数・正解数) 描画
    */
-  drawStatusBoard() {
-    const ctx = this.ctx
+  drawStatusBoard(ctx = this.ctx) {
     const w = 102
     const h = 60
     const x = this.CANVAS_WIDTH - w - 12
@@ -1041,39 +1195,6 @@ export class SakanaHen {
     ctx.fillText(`${this.hitCount}`, x + w - 10, y + 42)
     ctx.textAlign = 'start'
     ctx.textBaseline = 'alphabetic'
-  }
-
-  /**
-   * 寿司レーンのベルトの継ぎ目を描画
-   *
-   * @param plateX 皿のX座標 (継ぎ目を皿と同じ速さで動かすため)
-   */
-  drawBelt(plateX: number) {
-    const ctx = this.ctx
-    const top = this.TABLE_Y + this.LANE_OFFSET
-    const h = this.LANE_HEIGHT
-    const seg = this.BELT_SEGMENT
-    const offset = ((plateX % seg) + seg) % seg
-    ctx.save()
-    ctx.beginPath()
-    ctx.rect(0, top, this.CANVAS_WIDTH, h)
-    ctx.clip()
-    for (let x = offset - seg; x < this.CANVAS_WIDTH + seg; x += seg) {
-      // 三日月形のプレートの継ぎ目
-      ctx.beginPath()
-      ctx.moveTo(x, top)
-      ctx.quadraticCurveTo(x + 9, top + h / 2, x, top + h)
-      ctx.strokeStyle = 'rgba(105, 55, 15, 0.55)'
-      ctx.lineWidth = 2
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.moveTo(x + 2.5, top)
-      ctx.quadraticCurveTo(x + 11.5, top + h / 2, x + 2.5, top + h)
-      ctx.strokeStyle = 'rgba(255, 235, 200, 0.45)'
-      ctx.lineWidth = 1.2
-      ctx.stroke()
-    }
-    ctx.restore()
   }
 
   /**
@@ -1168,17 +1289,7 @@ export class SakanaHen {
     const colCenter = 324
     const kumanY = 30
     const visibleHeight = this.TABLE_Y - this.KUMAN_Y
-    ctx.drawImage(
-      kumanImage,
-      0,
-      0,
-      kumanImage.width,
-      visibleHeight,
-      colCenter - (kumanImage.width * scale) / 2,
-      kumanY,
-      kumanImage.width * scale,
-      visibleHeight * scale,
-    )
+    ctx.drawImage(kumanImage, 0, 0, kumanImage.width, visibleHeight, colCenter - (kumanImage.width * scale) / 2, kumanY, kumanImage.width * scale, visibleHeight * scale)
     const hat = this.image.boushi
     ctx.drawImage(hat, colCenter - (hat.width * scale) / 2, kumanY - 14 * scale, hat.width * scale, hat.height * scale)
     const standY = kumanY + visibleHeight * scale - 4
@@ -1415,9 +1526,9 @@ export class SakanaHen {
    * @param cx 中心X座標
    * @param bottom 皿の底のY座標
    * @param quiz 問題の漢字
+   * @param ctx コンテキスト
    */
-  drawQuizPlate(cx: number, bottom: number, quiz: string) {
-    const ctx = this.ctx
+  drawQuizPlate(cx: number, bottom: number, quiz: string, ctx = this.ctx) {
     const plateTop = drawSushiPlate(ctx, cx, bottom, 50)
     // 札立て (黒塗りの台)
     drawWoodBoard(ctx, cx - 20, plateTop - 9, 40, 9, WOOD_DARK, { radius: 2, shadow: 0, borderWidth: 1 })

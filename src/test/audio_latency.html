@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>効果音の遅延テスト</title>
+<style>
+  body { font-family: sans-serif; margin: 12px; background: #fff; color: #222; }
+  h1 { font-size: 18px; margin: 0 0 6px; }
+  p { font-size: 13px; margin: 4px 0; }
+  section { border: 1px solid #ccc; border-radius: 8px; padding: 8px; margin: 10px 0; }
+  h2 { font-size: 15px; margin: 0 0 4px; }
+  .buttons { display: flex; gap: 8px; }
+  button { flex: 1; font-size: 18px; padding: 14px 0; border-radius: 8px; border: 1px solid #888; background: #f4f4f4; touch-action: manipulation; }
+  .stat { font-family: monospace; font-size: 13px; margin-top: 6px; white-space: pre-wrap; }
+  #env { font-family: monospace; font-size: 11px; color: #666; word-break: break-all; }
+</style>
+</head>
+<body>
+<h1>効果音の遅延テスト</h1>
+<p>ボタンを押してから鳴るまでの時間を計測します。各方式で「正解」「不正解」を交互に 5 回ずつ押して比べてください。</p>
+<p>数値は、タップしてから再生が始まった（<code>playing</code> イベント / 再生位置が進み始めた）までの時間です。耳で聞いた遅れも合わせてメモしてください。</p>
+<p>「開始位置」は play() を呼んだ時点 → 再生が始まった時点の再生位置です。左が 0 でないと頭出しできていない、右が大きいと途中から再生されています。</p>
+<div id="env"></div>
+
+<section>
+  <h2>A. 現状の方式</h2>
+  <p>pause → currentTime = 0 → play（ゲームと同じ）</p>
+  <div class="buttons"><button data-method="A" data-sound="seikai">正解</button><button data-method="A" data-sound="miss">不正解</button></div>
+  <div class="stat" id="stat-A">-</div>
+</section>
+
+<section>
+  <h2>B. 頭出しを先に済ませておく</h2>
+  <p>再生が終わった時点で頭出ししておき、押したときはすぐ play（要素を 2 つ交互に使う）</p>
+  <div class="buttons"><button data-method="B" data-sound="seikai">正解</button><button data-method="B" data-sound="miss">不正解</button></div>
+  <div class="stat" id="stat-B">-</div>
+</section>
+
+<section>
+  <h2>C. B ＋ 無音をループ再生し続ける</h2>
+  <p>音声出力を立ち上げたままにする。最初にこのボタンを押したときから無音のループが始まります。コントロールセンターやロック画面に再生中の表示が出るかも確認してください。</p>
+  <div class="buttons"><button data-method="C" data-sound="seikai">正解</button><button data-method="C" data-sound="miss">不正解</button></div>
+  <div class="stat" id="stat-C">-</div>
+</section>
+
+<section>
+  <h2>E. 毎回新しい要素で再生</h2>
+  <p>要素を使い回さず、押すたびに new Audio() で作って再生する</p>
+  <div class="buttons"><button data-method="E" data-sound="seikai">正解</button><button data-method="E" data-sound="miss">不正解</button></div>
+  <div class="stat" id="stat-E">-</div>
+</section>
+
+<section>
+  <h2>G. 事前に作った新しい要素で再生（ゲームに組み込んだ方式）</h2>
+  <p>次の再生用の要素を事前に作っておき、押したらそれで再生してすぐ次の要素を作る（要素は使い捨て）</p>
+  <div class="buttons"><button data-method="G" data-sound="seikai">正解</button><button data-method="G" data-sound="miss">不正解</button></div>
+  <div class="stat" id="stat-G">-</div>
+</section>
+
+<section>
+  <h2>F. B の方式で WAV を再生</h2>
+  <p>MP3/OGG を Web Audio でデコードして WAV（無圧縮）に変換し、B と同じ方式で再生する。「準備中」と出たら少し待ってください。</p>
+  <div class="buttons"><button data-method="F" data-sound="seikai">正解</button><button data-method="F" data-sound="miss">不正解</button></div>
+  <div class="stat" id="stat-F">-</div>
+</section>
+
+<section>
+  <h2>D. Web Audio（比較用）</h2>
+  <p>古い iOS では消音スイッチが ON だと鳴りません。消音スイッチを OFF にして試してください。数値は「playing」が再生命令までの時間、「再生位置」の欄がブラウザの報告する出力の遅れ（無ければ -）です。A〜C と耳で比べてください。</p>
+  <div class="buttons"><button data-method="D" data-sound="seikai">正解</button><button data-method="D" data-sound="miss">不正解</button></div>
+  <div class="stat" id="stat-D">-</div>
+</section>
+
+<script>
+  const SOUNDS = { seikai: 'se_quizright_1', miss: 'se_quizmistake_1' }
+  const probe = new Audio()
+  const EXT = probe.canPlayType('audio/ogg') ? '.ogg' : '.mp3'
+  const url = (id) => `../assets/sounds/${SOUNDS[id]}${EXT}`
+
+  document.getElementById('env').textContent =
+    `${navigator.userAgent}\n形式: ${EXT} / audioSession: ${'audioSession' in navigator ? 'あり' : 'なし'}`
+
+  //----------
+  // 計測結果
+  //----------
+  const results = { A: [], B: [], C: [], D: [], E: [], F: [], G: [] }
+  const show = (method) => {
+    const list = results[method]
+    const avg = (key) => {
+      const v = list.map((r) => r[key]).filter((x) => x !== undefined)
+      return v.length ? (v.reduce((a, b) => a + b, 0) / v.length).toFixed(0) : '-'
+    }
+    const lines = list
+      .slice(-6)
+      .map((r) => `${r.sound.padEnd(6)} playing:${fmt(r.playing)} 再生位置:${fmt(r.moved)} 開始位置:${fmt(r.before)}→${fmt(r.pos)}${r.error ? ' エラー:' + r.error : ''}`)
+    document.getElementById(`stat-${method}`).textContent =
+      `回数:${list.length}  平均 playing:${avg('playing')}ms  再生位置:${avg('moved')}ms\n` + lines.join('\n')
+  }
+  const fmt = (v) => (v === undefined ? '  -  ' : `${v.toFixed(0).padStart(4)}ms`)
+
+  /** HTMLAudio の再生開始を計測 */
+  const measureAudio = (method, sound, audio, t0) => {
+    const r = { sound }
+    results[method].push(r)
+    const start = audio.currentTime
+    // play() を呼んだ時点の再生位置 (頭出しできていれば 0)
+    r.before = start * 1000
+    audio.addEventListener('playing', () => {
+      r.playing = performance.now() - t0
+      // 再生が始まった時点の再生位置 (大きければ途中から再生されている)
+      r.pos = audio.currentTime * 1000
+      show(method)
+    }, { once: true })
+    const poll = () => {
+      if (audio.currentTime > start + 0.001 || (start > 0 && audio.currentTime < start)) {
+        r.moved = performance.now() - t0
+        show(method)
+      } else if (performance.now() - t0 < 3000) {
+        requestAnimationFrame(poll)
+      }
+    }
+    requestAnimationFrame(poll)
+    return r
+  }
+
+  //----------
+  // A. 現状の方式
+  //----------
+  const audiosA = {}
+  for (const id in SOUNDS) audiosA[id] = new Audio(url(id))
+  const playA = (sound, t0) => {
+    const audio = audiosA[sound]
+    audio.pause()
+    audio.currentTime = 0
+    const r = measureAudio('A', sound, audio, t0)
+    audio.play().catch((e) => { r.error = e.name; show('A') })
+  }
+
+  //----------
+  // B. 頭出しを先に済ませておく (要素を 2 つ交互に使う)
+  //----------
+  const makePool = (urlOf = url) => {
+    const pool = {}
+    for (const id in SOUNDS) {
+      pool[id] = [new Audio(urlOf(id)), new Audio(urlOf(id))]
+      for (const audio of pool[id]) {
+        audio.addEventListener('ended', () => { audio.pause(); audio.currentTime = 0 })
+      }
+    }
+    return pool
+  }
+  const poolB = makePool()
+  const poolC = makePool()
+  const playPooled = (method, pool, sound, t0) => {
+    // 再生中でない要素を使う。両方再生中なら古い方を止めて使う
+    const audio = pool[sound].find((a) => a.paused) ?? pool[sound][0]
+    pool[sound].push(pool[sound].splice(pool[sound].indexOf(audio), 1)[0])
+    if (!audio.paused) audio.pause()
+    if (audio.currentTime !== 0) audio.currentTime = 0
+    const r = measureAudio(method, sound, audio, t0)
+    audio.play().catch((e) => { r.error = e.name; show(method) })
+  }
+
+  //----------
+  // C. B ＋ 無音のループ再生
+  //----------
+  /** 1 秒間の無音 WAV (8bit / 8kHz / モノラル) */
+  const silentWavUrl = () => {
+    const rate = 8000
+    const n = rate
+    const buf = new ArrayBuffer(44 + n)
+    const v = new DataView(buf)
+    const str = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)))
+    str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVE')
+    str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true)
+    v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true)
+    str(36, 'data'); v.setUint32(40, n, true)
+    for (let i = 0; i < n; i++) v.setUint8(44 + i, 128)
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }))
+  }
+  let silent
+  const startSilent = () => {
+    if (silent) return
+    silent = new Audio(silentWavUrl())
+    silent.loop = true
+    silent.play().catch((e) => console.warn('無音ループ再生失敗', e))
+  }
+
+  //----------
+  // D. Web Audio
+  //----------
+  const AC = window.AudioContext || window.webkitAudioContext
+  const ctx = AC ? new AC() : undefined
+  const buffers = {}
+  //----------
+  // F. WAV (デコード結果を 16bit PCM の WAV にして HTMLAudio で再生)
+  //----------
+  const wavUrls = {}
+  let poolF
+  const encodeWav = (ab) => {
+    const ch = ab.numberOfChannels
+    const n = ab.length
+    const buf = new ArrayBuffer(44 + n * ch * 2)
+    const v = new DataView(buf)
+    const str = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)))
+    str(0, 'RIFF'); v.setUint32(4, 36 + n * ch * 2, true); str(8, 'WAVE')
+    str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true)
+    v.setUint32(24, ab.sampleRate, true); v.setUint32(28, ab.sampleRate * ch * 2, true); v.setUint16(32, ch * 2, true); v.setUint16(34, 16, true)
+    str(36, 'data'); v.setUint32(40, n * ch * 2, true)
+    const data = [...Array(ch)].map((_, c) => ab.getChannelData(c))
+    let o = 44
+    for (let i = 0; i < n; i++) {
+      for (let c = 0; c < ch; c++) {
+        const s = Math.max(-1, Math.min(1, data[c][i]))
+        v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+        o += 2
+      }
+    }
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }))
+  }
+  if (ctx) {
+    for (const id in SOUNDS) {
+      fetch(url(id))
+        .then((res) => res.arrayBuffer())
+        .then((data) => new Promise((ok, ng) => ctx.decodeAudioData(data, ok, ng)))
+        .then((b) => {
+          buffers[id] = b
+          wavUrls[id] = encodeWav(b)
+          if (Object.keys(wavUrls).length === Object.keys(SOUNDS).length) {
+            poolF = makePool((sid) => wavUrls[sid])
+          }
+        })
+        .catch((e) => console.warn('デコード失敗', id, e))
+    }
+  }
+  const playD = (sound, t0) => {
+    const r = { sound }
+    results.D.push(r)
+    if (!ctx || !buffers[sound]) {
+      r.error = ctx ? '読み込み中' : '非対応'
+      show('D')
+      return
+    }
+    if (ctx.state !== 'running') ctx.resume()
+    const src = ctx.createBufferSource()
+    src.buffer = buffers[sound]
+    src.connect(ctx.destination)
+    src.start(0)
+    // Web Audio には再生開始のイベントが無いため、ブラウザが報告する出力の遅れを表示する (耳での比較が主)
+    r.playing = performance.now() - t0
+    r.moved = ((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) * 1000 || undefined
+    show('D')
+  }
+
+  //----------
+  // G. 事前に作った新しい要素 (使い捨て)
+  //----------
+  const prepareG = (sound) => {
+    const audio = new Audio(url(sound))
+    audio.preload = 'auto'
+    audio.load()
+    return audio
+  }
+  const nextG = {}
+  for (const id in SOUNDS) nextG[id] = prepareG(id)
+
+  //----------
+  // ボタン
+  //----------
+  document.querySelectorAll('button').forEach((btn) => {
+    btn.addEventListener('click', (event) => {
+      // タップした時刻 (click イベントの発生時刻。古いブラウザは timeStamp が Unix 時刻なので処理開始時刻を使う)
+      const t0 = event.timeStamp > 0 && event.timeStamp < 1e12 ? event.timeStamp : performance.now()
+      const { method, sound } = btn.dataset
+      if (method === 'A') playA(sound, t0)
+      if (method === 'B') playPooled('B', poolB, sound, t0)
+      if (method === 'C') { startSilent(); playPooled('C', poolC, sound, t0) }
+      if (method === 'D') playD(sound, t0)
+      if (method === 'E') {
+        const audio = new Audio(url(sound))
+        const r = measureAudio('E', sound, audio, t0)
+        audio.play().catch((e) => { r.error = e.name; show('E') })
+      }
+      if (method === 'G') {
+        const audio = nextG[sound]
+        nextG[sound] = prepareG(sound)
+        const r = measureAudio('G', sound, audio, t0)
+        audio.play().catch((e) => { r.error = e.name; show('G') })
+      }
+      if (method === 'F') {
+        if (poolF) {
+          playPooled('F', poolF, sound, t0)
+        } else {
+          results.F.push({ sound, error: '準備中' })
+          show('F')
+        }
+      }
+    })
+  })
+</script>
+</body>
+</html>
