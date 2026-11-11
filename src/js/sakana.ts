@@ -6,6 +6,7 @@
  * @link      https://team-grasshopper.info/
  */
 import { Log } from './libs/log.ts'
+import { SoundPlayer } from './libs/sound_player.ts'
 import { LST_SAKANA_HEN } from './consts/sakana_data.ts'
 import { Rectangle } from './types/rectangle.ts'
 import { FONT_COMMON, FONT_SUSHI, LST_AUDIOS, LST_IMAGES, RESULT_INFO } from './consts/def_data.ts'
@@ -96,12 +97,6 @@ export class SakanaHen {
    * タブ非表示等でフレームが止まった場合に、復帰時に時間が一気に進まないようにする
    */
   MAX_FRAME_DELTA = 100
-  /**
-   * 終了待ちサウンドの最大待ち時間(mS)
-   * 長さが取得できない/再生できない場合でも処理を先に進めるため
-   */
-  SOUND_END_TIMEOUT = 3000
-
   /** デバッグ処理 */
   debug = false
 
@@ -141,14 +136,8 @@ export class SakanaHen {
   /** 読み込み最大数 */
   loadMaxCount: number = 0
 
-  /** サウンドリスト */
-  sound: {
-    [key: string]: HTMLAudioElement
-  } = {}
-  /** サウンドのアンロック処理済みフラグ */
-  soundsUnlocked: boolean = false
-  /** アンロック(ミュート再生)中のサウンド */
-  unlockingSounds = new Set<HTMLAudioElement>()
+  /** サウンド */
+  soundPlayer = new SoundPlayer()
 
   /** requestAnimationFrame の ID (ゲーム進行中のみ設定) */
   animationId: number | undefined
@@ -362,23 +351,17 @@ export class SakanaHen {
     //----------
     // 音声ファイル設定
     //----------
-    // サポート拡張子確定
+    // OGG 優先、非対応なら MP3。読み込めなかった音声は無音扱いで進行する
     const audio = new Audio()
-    let ext: string | undefined
-    if (audio.canPlayType('audio/ogg')) {
-      ext = '.ogg'
-    } else if (audio.canPlayType('audio/mpeg')) {
-      ext = '.mp3'
-    }
-    // サウンドファイル設定
-    // 再生できない環境では this.sound は空のままとし、playSound() 側で無音として扱う
-    if (ext) {
-      LST_AUDIOS.forEach((item) => {
-        this.sound[item[0]] = new Audio(new URL(`../assets/sounds/${item[1]}${ext}`, import.meta.url).href)
-      })
-    } else {
-      Log.warn('再生可能な音声形式がありません')
-    }
+    const exts = audio.canPlayType('audio/ogg') ? ['.ogg', '.mp3'] : ['.mp3']
+    await Promise.all(
+      LST_AUDIOS.map((item) =>
+        this.soundPlayer.load(
+          item[0],
+          exts.map((ext) => new URL(`../assets/sounds/${item[1]}${ext}`, import.meta.url).href),
+        ),
+      ),
+    )
 
     //----------
     // クイズデータチェック
@@ -413,6 +396,8 @@ export class SakanaHen {
    */
   onClick = (event: MouseEvent) => {
     event.preventDefault()
+    // ユーザー操作中に音声を再生可能にする (操作外の時間切れ・結果画面の音を鳴らすため)
+    this.soundPlayer.unlock()
     const { x, y } = this.getCanvasPos(event)
 
     switch (this.state) {
@@ -423,8 +408,6 @@ export class SakanaHen {
           // 開始サウンド再生中の多重クリックを防ぐ
           this.state = 'starting'
           this.canvas.style.cursor = 'default'
-          // ユーザー操作中に全サウンドを再生可能にしておく (直後に再生する start は除く)
-          this.unlockSounds('start')
           this.playSound('start', () => this.startGame(level))
         }
         break
@@ -904,89 +887,10 @@ export class SakanaHen {
    * サウンド再生
    *
    * @param id サウンドID
-   * @param endFunc 再生終了時のコールバック関数
+   * @param endFunc 再生終了時のコールバック関数 (再生できない場合も必ず1回呼ばれる)
    */
   playSound(id: string, endFunc?: () => void) {
-    const sound: HTMLAudioElement | undefined = this.sound[id]
-
-    // endFunc は「再生終了」「再生失敗」「タイムアウト」のいずれか最初の1回だけ呼ぶ
-    let finished = false
-    let timeoutId: number | undefined
-    const finish = () => {
-      if (finished) {
-        return
-      }
-      finished = true
-      clearTimeout(timeoutId)
-      sound?.removeEventListener('ended', finish)
-      sound?.removeEventListener('error', finish)
-      endFunc?.()
-    }
-
-    // 音声が使えない環境では無音として即終了扱い
-    if (!sound) {
-      finish()
-      return
-    }
-
-    // アンロック中のサウンドを再生する場合は、アンロック処理による停止を取り消す
-    this.unlockingSounds.delete(sound)
-    sound.muted = false
-
-    // 再生中でも最初から再生しなおすおまじない
-    sound.pause()
-    sound.currentTime = 0
-
-    if (endFunc) {
-      sound.addEventListener('ended', finish, { once: true })
-      sound.addEventListener('error', finish, { once: true })
-      // 長さが分かればその少し後、分からなければ既定時間でタイムアウト
-      const timeout = Number.isFinite(sound.duration) ? sound.duration * 1000 + 500 : this.SOUND_END_TIMEOUT
-      timeoutId = window.setTimeout(finish, timeout)
-    }
-
-    sound.play().catch((error) => {
-      // 自動再生制限・読み込み失敗等
-      Log.warn(`サウンド再生失敗: ${id}`, error)
-      finish()
-    })
-  }
-
-  /**
-   * サウンドのアンロック
-   * iOS Safari 等では、音声要素ごとにユーザー操作中に一度再生しないと、
-   * 操作外 (時間切れ・結果画面等) からの play() が拒否される。
-   * 最初のユーザー操作中に全サウンドをミュートで再生してすぐ止めておく。
-   *
-   * @param exceptId 直後に通常再生するため除外するサウンドID
-   */
-  unlockSounds(exceptId?: string) {
-    if (this.soundsUnlocked) {
-      return
-    }
-    this.soundsUnlocked = true
-    Object.entries(this.sound).forEach(([id, sound]) => {
-      if (id === exceptId) {
-        return
-      }
-      this.unlockingSounds.add(sound)
-      sound.muted = true
-      sound
-        .play()
-        .then(() => {
-          // 途中で playSound() により通常再生された場合は止めない
-          if (this.unlockingSounds.delete(sound)) {
-            sound.pause()
-            sound.currentTime = 0
-            sound.muted = false
-          }
-        })
-        .catch(() => {
-          if (this.unlockingSounds.delete(sound)) {
-            sound.muted = false
-          }
-        })
-    })
+    this.soundPlayer.play(id, endFunc)
   }
 
   /**
@@ -1001,4 +905,4 @@ export class SakanaHen {
 /**
  * コンストラクタで上書き可能な設定値
  */
-export type SakanaHenOptions = Partial<Pick<SakanaHen, 'CANVAS_WIDTH' | 'CANVAS_HEIGHT' | 'HIT_WAIT_TIME' | 'MAX_FRAME_DELTA' | 'SOUND_END_TIMEOUT' | 'debug'>>
+export type SakanaHenOptions = Partial<Pick<SakanaHen, 'CANVAS_WIDTH' | 'CANVAS_HEIGHT' | 'HIT_WAIT_TIME' | 'MAX_FRAME_DELTA' | 'debug'>>
