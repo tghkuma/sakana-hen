@@ -23,8 +23,16 @@ export class SoundPlayer {
   private context?: AudioContext
   /** デコード済みの音声 (Web Audio 用) */
   private buffers: { [id: string]: AudioBuffer } = {}
-  /** audio 要素 (HTMLAudio 用) */
-  private audios: { [id: string]: HTMLAudioElement } = {}
+  /**
+   * HTMLAudio 用: 音声の URL と、次の再生用に用意した audio 要素
+   * audio 要素は 1 回再生したら使い捨て、再生のたびに新しい要素を用意しておく。
+   * iPhone 6S (iOS 15) では、同じ要素を頭出し (currentTime = 0) して再生し直すと
+   * - 頭出しの完了待ちで再生が遅れる (約 280mS)
+   * - 何回か再生すると音の頭が切れる (頭出し済みの要素を交互に使っても起きる)
+   * ため。新しい要素はこれが起きず、事前に作っておけば遅れも少ない。
+   */
+  private audioUrls: { [id: string]: string } = {}
+  private nextAudios: { [id: string]: HTMLAudioElement } = {}
 
   constructor(endTimeout = 3000) {
     this.endTimeout = endTimeout
@@ -55,7 +63,8 @@ export class SoundPlayer {
   async load(id: string, urls: string[]) {
     if (!this.context) {
       if (urls[0]) {
-        this.audios[id] = new Audio(urls[0])
+        this.audioUrls[id] = urls[0]
+        this.prepareAudio(id)
       }
       return
     }
@@ -158,14 +167,13 @@ export class SoundPlayer {
    * @returns 終了時に登録したイベントを外す関数
    */
   private playAudio(id: string, finish: () => void, startTimeout: (ms: number) => void) {
-    const audio = this.audios[id]
+    const audio = this.nextAudios[id]
     if (!audio) {
       finish()
       return undefined
     }
-    // 再生中でも最初から再生しなおす
-    audio.pause()
-    audio.currentTime = 0
+    // 用意しておいた要素で再生し、次の再生用に新しい要素を用意する
+    this.prepareAudio(id)
 
     audio.addEventListener('ended', finish, { once: true })
     audio.addEventListener('error', finish, { once: true })
@@ -181,6 +189,19 @@ export class SoundPlayer {
       audio.removeEventListener('ended', finish)
       audio.removeEventListener('error', finish)
     }
+  }
+
+  /**
+   * HTMLAudio 用: 次の再生用の audio 要素を作って読み込みを始めておく
+   * (iOS では操作外の load() は無視されることがあるが、その場合も再生時に読み込まれる)
+   *
+   * @param id サウンドID
+   */
+  private prepareAudio(id: string) {
+    const audio = new Audio(this.audioUrls[id])
+    audio.preload = 'auto'
+    audio.load()
+    this.nextAudios[id] = audio
   }
 }
 
