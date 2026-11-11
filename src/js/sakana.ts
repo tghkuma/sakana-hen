@@ -864,7 +864,8 @@ export class SakanaHen {
     this.update(delta)
 
     // 更新中にゲーム終了した場合は描画・次フレーム予約をしない
-    if (this.animationId === undefined) {
+    // (endGame() が結果画面の演出用に animationId を設定し直すため、animationId ではなく state で判定する)
+    if (this.state !== 'playing') {
       return
     }
     this.draw()
