@@ -6,6 +6,7 @@
  * @link      https://team-grasshopper.info/
  */
 import { Log } from './libs/log.ts'
+import { SoundPlayer } from './libs/sound_player.ts'
 import { LST_SAKANA_HEN } from './consts/sakana_data.ts'
 import { Rectangle } from './types/rectangle.ts'
 import { FONT_COMMON, FONT_SUSHI, LST_AUDIOS, LST_IMAGES, RESULT_INFO } from './consts/def_data.ts'
@@ -78,8 +79,16 @@ const validateQuizData = (): string | undefined => {
 export class SakanaHen {
   /** キャンバス幅 */
   CANVAS_WIDTH = 400
-  /** キャンバス高さ */
-  CANVAS_HEIGHT = 400
+  /**
+   * キャンバス高さ
+   * 変更する場合は index.html の --canvas-aspect (幅/高さ) も合わせること
+   */
+  CANVAS_HEIGHT = 500
+
+  /** 回答ボタンの行間 */
+  ANSWER_ROW_GAP = 14
+  /** 回答ボタン領域の上下余白 */
+  ANSWER_AREA_PADDING = 12
 
   /** 当たりはずれウェイト(mS) */
   HIT_WAIT_TIME = 1000
@@ -88,12 +97,6 @@ export class SakanaHen {
    * タブ非表示等でフレームが止まった場合に、復帰時に時間が一気に進まないようにする
    */
   MAX_FRAME_DELTA = 100
-  /**
-   * 終了待ちサウンドの最大待ち時間(mS)
-   * 長さが取得できない/再生できない場合でも処理を先に進めるため
-   */
-  SOUND_END_TIMEOUT = 3000
-
   /** デバッグ処理 */
   debug = false
 
@@ -133,10 +136,8 @@ export class SakanaHen {
   /** 読み込み最大数 */
   loadMaxCount: number = 0
 
-  /** サウンドリスト */
-  sound: {
-    [key: string]: HTMLAudioElement
-  } = {}
+  /** サウンド */
+  soundPlayer = new SoundPlayer()
 
   /** requestAnimationFrame の ID (ゲーム進行中のみ設定) */
   animationId: number | undefined
@@ -263,6 +264,21 @@ export class SakanaHen {
   }
 
   /**
+   * キャンバスの表示幅が CSS で決まっているか判定する
+   * 内部解像度(width属性)を変えて表示幅が変わらなければ CSS で指定されているとみなす
+   * (CSS で高さを指定しない場合、高さは width/height 属性の比率に従って決まる)
+   */
+  isWidthSizedByCss() {
+    this.canvas.width = this.CANVAS_WIDTH
+    this.canvas.height = this.CANVAS_HEIGHT
+    const before = this.canvas.getBoundingClientRect().width
+    this.canvas.width = this.CANVAS_WIDTH + 1
+    const after = this.canvas.getBoundingClientRect().width
+    this.canvas.width = this.CANVAS_WIDTH
+    return before === after
+  }
+
+  /**
    * クイズ初期化
    */
   async init() {
@@ -271,14 +287,14 @@ export class SakanaHen {
     //----------
     // キャンバスサイズ設定
     //----------
-    // 表示サイズが指定されていなければ論理サイズで表示する
+    // CSS で表示幅が指定されていなければ論理サイズで表示する
     // (内部解像度を上げるため、CSS サイズを固定しないと devicePixelRatio 倍で表示されてしまう)
-    if (!this.canvas.style.width && !this.canvas.style.height) {
+    if (!this.isWidthSizedByCss()) {
       this.canvas.style.width = `${this.CANVAS_WIDTH}px`
       this.canvas.style.height = `${this.CANVAS_HEIGHT}px`
     }
     this.resize()
-    // 表示サイズ変更 (拡大ボタン・ウィンドウサイズ変更等) に追従する
+    // 表示サイズ変更 (画面回転・ウィンドウサイズ変更等) に追従する
     if (typeof ResizeObserver !== 'undefined') {
       new ResizeObserver(() => this.resize()).observe(this.canvas)
     }
@@ -335,23 +351,17 @@ export class SakanaHen {
     //----------
     // 音声ファイル設定
     //----------
-    // サポート拡張子確定
+    // OGG 優先、非対応なら MP3。読み込めなかった音声は無音扱いで進行する
     const audio = new Audio()
-    let ext: string | undefined
-    if (audio.canPlayType('audio/ogg')) {
-      ext = '.ogg'
-    } else if (audio.canPlayType('audio/mpeg')) {
-      ext = '.mp3'
-    }
-    // サウンドファイル設定
-    // 再生できない環境では this.sound は空のままとし、playSound() 側で無音として扱う
-    if (ext) {
-      LST_AUDIOS.forEach((item) => {
-        this.sound[item[0]] = new Audio(new URL(`../assets/sounds/${item[1]}${ext}`, import.meta.url).href)
-      })
-    } else {
-      Log.warn('再生可能な音声形式がありません')
-    }
+    const exts = audio.canPlayType('audio/ogg') ? ['.ogg', '.mp3'] : ['.mp3']
+    await Promise.all(
+      LST_AUDIOS.map((item) =>
+        this.soundPlayer.load(
+          item[0],
+          exts.map((ext) => new URL(`../assets/sounds/${item[1]}${ext}`, import.meta.url).href),
+        ),
+      ),
+    )
 
     //----------
     // クイズデータチェック
@@ -386,6 +396,8 @@ export class SakanaHen {
    */
   onClick = (event: MouseEvent) => {
     event.preventDefault()
+    // ユーザー操作中に音声を再生可能にする (操作外の時間切れ・結果画面の音を鳴らすため)
+    this.soundPlayer.unlock()
     const { x, y } = this.getCanvasPos(event)
 
     switch (this.state) {
@@ -522,11 +534,12 @@ export class SakanaHen {
     this.rectAnswers = []
     const btnHeight = this.image.btn_0.height
     const btnWidth = this.image.btn_0.width
-    const lineHeight = btnHeight
+    const lineHeight = btnHeight + this.ANSWER_ROW_GAP
 
+    // 回答ボタンは画面下部に寄せて配置する (親指で押しやすいように)
     const maxCol = 2
     const maxRow = Math.ceil(this.maxAnswerNo / maxCol)
-    const startY = this.CANVAS_HEIGHT - maxRow * lineHeight
+    const startY = this.CANVAS_HEIGHT - this.ANSWER_AREA_PADDING - (maxRow * btnHeight + (maxRow - 1) * this.ANSWER_ROW_GAP)
     let answerNo = 0
     for (let row = 0; row < maxRow; row++) {
       for (let col = 0; col < maxCol; col++) {
@@ -715,7 +728,8 @@ export class SakanaHen {
     this.ctx.drawImage(imgKuman, (this.CANVAS_WIDTH - imgKuman.width) / 2, 48)
 
     // 帽子
-    this.ctx.drawImage(this.image.boushi, (this.CANVAS_WIDTH - this.image.boushi.width) / 2, 35)
+    // boushi.svg は枠線が切れないよう上下左右に 1px の余白があるため、その分上にずらす
+    this.ctx.drawImage(this.image.boushi, (this.CANVAS_WIDTH - this.image.boushi.width) / 2, 34)
 
     //----------
     // テーブル
@@ -752,7 +766,8 @@ export class SakanaHen {
     // 三択描画
     //----------
     this.ctx.fillStyle = 'rgb(255,255,255)'
-    this.ctx.fillRect(this.rectAnswers[0].x, this.rectAnswers[0].y, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
+    const answerAreaTop = this.rectAnswers[0].y - this.ANSWER_AREA_PADDING
+    this.ctx.fillRect(0, answerAreaTop, this.CANVAS_WIDTH, this.CANVAS_HEIGHT - answerAreaTop)
     for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
       const posY = this.rectAnswers[answerNo].y
       const posX = this.rectAnswers[answerNo].x
@@ -837,7 +852,7 @@ export class SakanaHen {
     // 背景クリア
     this.ctx.clearRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
 
-    const posY = 100
+    const posY = this.CANVAS_HEIGHT / 4
 
     // 文字
     this.ctx.font = '30px ' + FONT_COMMON
@@ -872,48 +887,10 @@ export class SakanaHen {
    * サウンド再生
    *
    * @param id サウンドID
-   * @param endFunc 再生終了時のコールバック関数
+   * @param endFunc 再生終了時のコールバック関数 (再生できない場合も必ず1回呼ばれる)
    */
   playSound(id: string, endFunc?: () => void) {
-    const sound: HTMLAudioElement | undefined = this.sound[id]
-
-    // endFunc は「再生終了」「再生失敗」「タイムアウト」のいずれか最初の1回だけ呼ぶ
-    let finished = false
-    let timeoutId: number | undefined
-    const finish = () => {
-      if (finished) {
-        return
-      }
-      finished = true
-      clearTimeout(timeoutId)
-      sound?.removeEventListener('ended', finish)
-      sound?.removeEventListener('error', finish)
-      endFunc?.()
-    }
-
-    // 音声が使えない環境では無音として即終了扱い
-    if (!sound) {
-      finish()
-      return
-    }
-
-    // 再生中でも最初から再生しなおすおまじない
-    sound.pause()
-    sound.currentTime = 0
-
-    if (endFunc) {
-      sound.addEventListener('ended', finish, { once: true })
-      sound.addEventListener('error', finish, { once: true })
-      // 長さが分かればその少し後、分からなければ既定時間でタイムアウト
-      const timeout = Number.isFinite(sound.duration) ? sound.duration * 1000 + 500 : this.SOUND_END_TIMEOUT
-      timeoutId = window.setTimeout(finish, timeout)
-    }
-
-    sound.play().catch((error) => {
-      // 自動再生制限・読み込み失敗等
-      Log.warn(`サウンド再生失敗: ${id}`, error)
-      finish()
-    })
+    this.soundPlayer.play(id, endFunc)
   }
 
   /**
@@ -928,4 +905,4 @@ export class SakanaHen {
 /**
  * コンストラクタで上書き可能な設定値
  */
-export type SakanaHenOptions = Partial<Pick<SakanaHen, 'CANVAS_WIDTH' | 'CANVAS_HEIGHT' | 'HIT_WAIT_TIME' | 'MAX_FRAME_DELTA' | 'SOUND_END_TIMEOUT' | 'debug'>>
+export type SakanaHenOptions = Partial<Pick<SakanaHen, 'CANVAS_WIDTH' | 'CANVAS_HEIGHT' | 'HIT_WAIT_TIME' | 'MAX_FRAME_DELTA' | 'debug'>>

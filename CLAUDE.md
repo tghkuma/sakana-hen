@@ -12,6 +12,8 @@ npm run dev                    # 開発サーバー起動 (http://localhost:5173
 npm run build                  # dist/ へビルド
 npm run build -- --mode ghp    # GitHub Pages 向けビルド (.env.ghp を使用)
 npm run preview                # ビルド結果のプレビュー
+npm run dev:host               # LAN 内に公開して起動 (同じ Wi-Fi のスマホ実機で確認用)
+npm run preview:host           # ビルド結果を LAN 内に公開
 npx prettier --write src/js    # 整形 (.prettierrc: セミコロンなし・シングルクォート・printWidth 200)
 ```
 
@@ -37,12 +39,13 @@ npx prettier --write src/js    # 整形 (.prettierrc: セミコロンなし・�
 
 - **カスタマイズ箇所**: `sakana.ts` 冒頭の `LEVEL_INFO`（レベルごとの制限時間・問題数・選択肢数）。コンストラクタの `options` は `Object.assign` でインスタンスに上書きされる。
 - **時間管理**: 進行はフレーム数ではなく経過時間(mS)で計算する（`sushiElapsed` / `hitElapsed`）。1 フレームの経過時間は `MAX_FRAME_DELTA` で上限を設け、タブ非表示中はゲームが実質一時停止する。
-- **サウンド**: `playSound(id, endFunc)` の `endFunc` は「再生終了・再生失敗・タイムアウト」のいずれかで必ず 1 回呼ばれる。音声が無い/再生できない環境でも進行が止まらないことを前提にしている。
+- **サウンド**: `src/js/libs/sound_player.ts` の `SoundPlayer` が Web Audio API（`AudioContext` + デコード済みバッファ）で再生する。`HTMLAudioElement` は iOS（特に LINE 等のアプリ内ブラウザ）で効果音の連続再生やユーザー操作外からの再生が失敗することがあったため使わない。`playSound(id, endFunc)` の `endFunc` は「再生終了・再生できない・タイムアウト」のいずれかで必ず 1 回呼ばれ、音声が無い/再生できない環境でも進行が止まらない。キャンバスのクリックのたびに `soundPlayer.unlock()` で `AudioContext` を再開する（ユーザー操作外の時間切れ・結果画面の音を鳴らすため。iOS の中断状態からの復帰も兼ねる）。iOS では消音スイッチ（マナーモード）中も鳴らすため、iOS 16.4 以降は `navigator.audioSession.type = 'playback'`、それより古い iOS（`audioSession` が無い）と Web Audio 非対応環境では `HTMLAudioElement` で再生する（v0.3.0 と同じ方式）。古い iOS では Web Audio が消音スイッチで必ず消音され、無音 `<audio>` をループ再生する回避策も効かなかったため。また v0.4.0 で入れた「全音声をミュート再生してアンロック」する処理は、iPhone 6S / iOS 15 で消音スイッチ中に鳴らなくなる原因と見られるため行わない。
 - **読み込み失敗時**: 画像が 1 枚でも読めなければ `drawErrorMessage()` でエラー表示して停止する（壊れた画像は `drawImage` で例外になるため）。
 - **クイズデータ**: `src/js/consts/sakana_data.ts`（`[漢字, 読み]` の配列）。画像・音声のファイルリスト、結果メッセージ、フォントは `src/js/consts/def_data.ts`。
 - **アセット読み込み**: `new URL(\`../assets/...\`, import.meta.url)` で Vite のアセット解決を利用する。新しい画像・音声は `src/assets/` に置き `def_data.ts` のリストに追加する。音声は OGG 優先、非対応ブラウザでは MP3 にフォールバックするため両形式を用意する。
 - **状態管理**: `state`（`loading` / `title` / `starting` / `playing` / `result` / `error`）で画面を管理する。canvas の `click` / `mousemove` リスナーは `init()` で 1 度だけ登録し、`onClick` / `onMouseMove` が `state` で処理を振り分ける。画面ごとにリスナーを付け外ししないこと。
-- **論理座標と解像度**: 描画・当たり判定はすべて `CANVAS_WIDTH` x `CANVAS_HEIGHT`（400x400）の論理座標で行う。`this.canvas.width/height` は表示サイズ × `devicePixelRatio` の内部解像度なので、描画コードで論理サイズとして使わないこと。`resize()` が `ResizeObserver` で表示サイズ変更に追従して内部解像度と `setTransform` を更新し、`redraw()` で現在の画面を描き直す。
+- **論理座標と解像度**: 描画・当たり判定はすべて `CANVAS_WIDTH` x `CANVAS_HEIGHT`（400x500 の縦長）の論理座標で行う。回答ボタンは画面下部に寄せて配置する（`ANSWER_ROW_GAP` / `ANSWER_AREA_PADDING`）。`this.canvas.width/height` は表示サイズ × `devicePixelRatio` の内部解像度なので、描画コードで論理サイズとして使わないこと。`resize()` が `ResizeObserver` で表示サイズ変更に追従して内部解像度と `setTransform` を更新し、`redraw()` で現在の画面を描き直す。
+- **表示サイズ**: `index.html` の CSS で、縦横比 `--canvas-aspect` を保ったまま画面幅・画面高さ（ノッチ等の安全領域を除く）・最大幅 600px に収まるよう伸縮させ、画面の上下左右中央に配置する。ページ自体はスクロール・拡大させない（`#container` を `position: fixed`、canvas は `touch-action: none`、viewport は `user-scalable=no`）。LINE のアプリ内ブラウザでプレイ中に画面が縮小して押せなくなる問題への対策。`--canvas-aspect` は `CANVAS_WIDTH / CANVAS_HEIGHT` と一致させること。CSS で幅が指定されていない埋め込み先では `isWidthSizedByCss()` が判定し、論理サイズのインラインスタイルを設定する。
 - **座標補正**: `getCanvasPos()` が `getBoundingClientRect()` の表示サイズと論理サイズの比率からキャンバス座標に変換する。CSS でどう拡大縮小しても埋め込み側で補正値を設定する必要はない。
 - **データ検証**: `init()` で `validateQuizData()` が `LEVEL_INFO` とクイズデータの整合（問題数 ≦ データ件数、選択肢数 ≦ 読みの種類数）をチェックし、不足ならエラー表示して停止する。
 - **デバッグログ**: `debug` フラグは `import.meta.env.DEV` で初期化され、`Log.info()` は開発モード時のみ出力される。
