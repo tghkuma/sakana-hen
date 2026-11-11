@@ -1,6 +1,6 @@
 {
   "name": "sakana-hen",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "さかなへんクイズ",
   "main": "index.js",
   "repository": "https://github.com/tghkuma/sakana-hen.git",
