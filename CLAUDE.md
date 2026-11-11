@@ -18,7 +18,7 @@ npx prettier --write src/js    # 整形 (.prettierrc: セミコロンなし・�
 ```
 
 - Windows では画像最適化用の `sharp` のために `npm install @img/sharp-win32-x64` が別途必要な場合がある。
-- 自動テスト・lint は存在しない。`src/test/audio_test.html`（サウンド再生テスト）は開発サーバー経由で開いて確認する。
+- 自動テスト・lint は存在しない。`src/test/audio_test.html`（サウンド再生テスト）と `src/test/audio_latency.html`（効果音の再生方式ごとの遅延計測）は開発サーバー経由で開いて確認する（実機では `npm run dev:host` で起動し `http://<PCのIP>:5173/test/...` を開く）。
 - `.env.sample` をコピーして `.env` を作成し、`VITE_SITE_URL`（デプロイ先 URL）を設定する。
 
 ## アーキテクチャ
@@ -39,7 +39,7 @@ npx prettier --write src/js    # 整形 (.prettierrc: セミコロンなし・�
 
 - **カスタマイズ箇所**: `sakana.ts` 冒頭の `LEVEL_INFO`（レベルごとの制限時間・問題数・選択肢数）。コンストラクタの `options` は `Object.assign` でインスタンスに上書きされる。
 - **時間管理**: 進行はフレーム数ではなく経過時間(mS)で計算する（`sushiElapsed` / `hitElapsed`）。1 フレームの経過時間は `MAX_FRAME_DELTA` で上限を設け、タブ非表示中はゲームが実質一時停止する。
-- **サウンド**: `src/js/libs/sound_player.ts` の `SoundPlayer` が Web Audio API（`AudioContext` + デコード済みバッファ）で再生する。`HTMLAudioElement` は iOS（特に LINE 等のアプリ内ブラウザ）で効果音の連続再生やユーザー操作外からの再生が失敗することがあったため使わない。`playSound(id, endFunc)` の `endFunc` は「再生終了・再生できない・タイムアウト」のいずれかで必ず 1 回呼ばれ、音声が無い/再生できない環境でも進行が止まらない。キャンバスのクリックのたびに `soundPlayer.unlock()` で `AudioContext` を再開する（ユーザー操作外の時間切れ・結果画面の音を鳴らすため。iOS の中断状態からの復帰も兼ねる）。iOS では消音スイッチ（マナーモード）中も鳴らすため、iOS 16.4 以降は `navigator.audioSession.type = 'playback'`、それより古い iOS（`audioSession` が無い）と Web Audio 非対応環境では `HTMLAudioElement` で再生する（v0.3.0 と同じ方式）。古い iOS では Web Audio が消音スイッチで必ず消音され、無音 `<audio>` をループ再生する回避策も効かなかったため。また v0.4.0 で入れた「全音声をミュート再生してアンロック」する処理は、iPhone 6S / iOS 15 で消音スイッチ中に鳴らなくなる原因と見られるため行わない。
+- **サウンド**: `src/js/libs/sound_player.ts` の `SoundPlayer` が Web Audio API（`AudioContext` + デコード済みバッファ）で再生する。`HTMLAudioElement` は iOS（特に LINE 等のアプリ内ブラウザ）で効果音の連続再生やユーザー操作外からの再生が失敗することがあったため使わない。`playSound(id, endFunc)` の `endFunc` は「再生終了・再生できない・タイムアウト」のいずれかで必ず 1 回呼ばれ、音声が無い/再生できない環境でも進行が止まらない。キャンバスのクリックのたびに `soundPlayer.unlock()` で `AudioContext` を再開する（ユーザー操作外の時間切れ・結果画面の音を鳴らすため。iOS の中断状態からの復帰も兼ねる）。iOS では消音スイッチ（マナーモード）中も鳴らすため、iOS 16.4 以降は `navigator.audioSession.type = 'playback'`、それより古い iOS（`audioSession` が無い）と Web Audio 非対応環境では `HTMLAudioElement` で再生する（v0.3.0 と同じ方式）。HTMLAudio では audio 要素を 1 回再生したら使い捨て、次の再生用の新しい要素を事前に作っておく（`prepareAudio()`）。iPhone 6S（iOS 15）では同じ要素を頭出し（`currentTime = 0`）して再生し直すと、頭出しの完了待ちで効果音が遅れ（約 280mS）、何回か再生すると音の頭が切れるため（頭出しを再生終了時に済ませて要素 2 つを交互に使っても頭は切れた。WAV にしても切れ、無音のループ再生で音声出力を立ち上げたままにしても改善しなかった）。検証は `src/test/audio_latency.html` で行った。古い iOS では Web Audio が消音スイッチで必ず消音され、無音 `<audio>` をループ再生する回避策も効かなかったため。また v0.4.0 で入れた「全音声をミュート再生してアンロック」する処理は、iPhone 6S / iOS 15 で消音スイッチ中に鳴らなくなる原因と見られるため行わない。
 - **読み込み失敗時**: 画像が 1 枚でも読めなければ `drawErrorMessage()` でエラー表示して停止する（壊れた画像は `drawImage` で例外になるため）。
 - **クイズデータ**: `src/js/consts/sakana_data.ts`（`[漢字, 読み]` の配列）。画像・音声のファイルリスト、結果メッセージ、フォントは `src/js/consts/def_data.ts`。
 - **アセット読み込み**: `new URL(\`../assets/...\`, import.meta.url)` で Vite のアセット解決を利用する。新しい画像・音声は `src/assets/` に置き `def_data.ts` のリストに追加する。音声は OGG 優先、非対応ブラウザでは MP3 にフォールバックするため両形式を用意する。
