@@ -4,7 +4,7 @@
 
 「さかなへんクイズ」は2011年にHTML5+JavaScriptで作成したものを、TypeScriptでリファクタリングしたものです。  
 
-<img width="400" alt="画面イメージ" src="src/public/images/thumbnail.png">
+<img width="400" alt="画面イメージ" src="docs/screenshot.png">
 
 デモサイト [さかなへんクイズ](https://sakana-hen.t-gh.jp/)  
 
