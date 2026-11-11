@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta property="og:image" content="%VITE_SITE_URL%/images/thumbnail.png">
 <title>「さかなへん」クイズ</title>
 <script type="module">
@@ -31,20 +31,33 @@ onload = function() {
     --safe-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   }
 }
+/**
+ * ページ自体はスクロールさせない
+ * (アプリ内ブラウザ等でスクロールに連動してツールバーが出入りし、表示サイズが変わるのを防ぐ)
+ */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 body {
   margin: 0;
-  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  /** キャンバス外の余白は店の柱のような濃い木の色にする */
+  background-color: #3b2716;
   /** 長押しコピー禁止 */
   -webkit-user-select: none;
   user-select: none;
 }
 /** キャンバスを画面の上下左右中央に配置する */
 #container {
+  position: fixed;
+  inset: 0;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: var(--safe-height);
 }
 #id_canvas {
   display: block;
@@ -55,9 +68,9 @@ body {
   width: min(var(--safe-width), calc(var(--safe-height) * var(--canvas-aspect)), var(--canvas-max-width));
   height: auto;
   aspect-ratio: var(--canvas-aspect);
-  background-color: #fff0f0;
-  /** ダブルタップによる拡大を抑止 */
-  touch-action: manipulation;
+  background-color: #f7f0e1;
+  /** ダブルタップ・ピンチによる拡大やスクロールを抑止 (タップの click は発生する) */
+  touch-action: none;
   /** 選択ハイライト禁止 */
   -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }

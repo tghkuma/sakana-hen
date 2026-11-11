@@ -4,14 +4,14 @@ export const FONT_COMMON = "'Helvetica Neue', 'Helvetica', 'Hiragino Sans', 'Hir
 export const FONT_SUSHI = "'Times New Roman', 'YuMincho', 'Hiragino Mincho ProN', 'Yu Mincho', 'MS PMincho', serif"
 
 /**
-* 結果
-* 正解率,メッセージ,サウンド
+* 結果 (正解率の降順)
+* 正解率,判子の格付け,メッセージ,サウンド
 */
-export const RESULT_INFO: [number, string, string][] = [
-  [100, '大変よくできました', 'fanfare'],
-  [70, 'よくできました', 'fanfare'],
-  [40, 'もう少しです', 'gameover'],
-  [0, 'がんばりましょう', 'gameover'],
+export const RESULT_INFO: [number, string, string, string][] = [
+  [100, '特上', '大変よくできました', 'fanfare'],
+  [70, '上', 'よくできました', 'fanfare'],
+  [40, '並', 'もう少しです', 'gameover'],
+  [0, '修行中', 'がんばりましょう', 'gameover'],
 ]
 
 /** 画像リスト */
@@ -21,12 +21,8 @@ export const LST_IMAGES = [
   ['kuman_ng', 'ku_man_ng.svg'],
   ['boushi', 'boushi.svg'],
   ['table', 'table.svg'],
-  ['btn_0', 'btn_0.svg'],
-  ['btn_1', 'btn_1.svg'],
   ['ans_ok', 'ans_ok.svg'],
   ['ans_ng', 'ans_ng.svg'],
-  ['sara', 'sara.svg'],
-  ['yunomi', 'yunomi.png'],
 ]
 
 /** 音声リスト */
