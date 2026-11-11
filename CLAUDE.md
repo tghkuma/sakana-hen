@@ -18,7 +18,7 @@ npx prettier --write src/js    # 整形 (.prettierrc: セミコロンなし・�
 ```
 
 - Windows では画像最適化用の `sharp` のために `npm install @img/sharp-win32-x64` が別途必要な場合がある。
-- 自動テスト・lint は存在しない。`src/test/audio_test.html`（サウンド再生テスト）と `src/test/audio_latency.html`（効果音の再生方式ごとの遅延計測）は開発サーバー経由で開いて確認する（実機では `npm run dev:host` で起動し `http://<PCのIP>:5173/test/...` を開く）。
+- 自動テスト・lint は存在しない。`src/test/audio_latency.html`（効果音の再生方式ごとの遅延計測）は開発サーバー経由で開いて確認する（実機では `npm run dev:host` で起動し `http://<PCのIP>:5173/test/...` を開く）。
 - `.env.sample` をコピーして `.env` を作成し、`VITE_SITE_URL`（デプロイ先 URL）を設定する。
 
 ## アーキテクチャ

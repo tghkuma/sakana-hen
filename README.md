@@ -32,7 +32,7 @@
     |   +-- images		画像ファイル群
     |   +-- sounds		サウンドファイル群
     +-- test			  検証用プログラム群
-       audio_test.html		サウンド再生テスト
+       audio_latency.html	効果音の再生方式ごとの遅延計測
 ```
 
 ## 構築
