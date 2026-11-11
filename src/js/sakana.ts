@@ -11,15 +11,39 @@ import { LST_SAKANA_HEN } from './consts/sakana_data.ts'
 import { Rectangle } from './types/rectangle.ts'
 import { FONT_COMMON, FONT_SUSHI, LST_AUDIOS, LST_IMAGES, RESULT_INFO } from './consts/def_data.ts'
 import { easeOutElastic } from './libs/easing.ts'
+import { drawSushiPlate, drawVerticalText, drawWoodBoard, fitFontSize, roundRectPath, WOOD_DARK, WOOD_HOVER, WOOD_LIGHT, WOOD_SELECTED } from './libs/draw.ts'
 
 /**
  * 難易度情報
+ * grade: タイトル画面の木札に書く寿司の格
  */
 const LEVEL_INFO = [
-  { name: '初級', sushiMoveTime: 5000, maxQuizNo: 10, maxAnswerNo: 2 },
-  { name: '中級', sushiMoveTime: 4000, maxQuizNo: 10, maxAnswerNo: 3 },
-  { name: '上級', sushiMoveTime: 3000, maxQuizNo: 20, maxAnswerNo: 4 },
+  { name: '初級', grade: '並', sushiMoveTime: 5000, maxQuizNo: 10, maxAnswerNo: 2 },
+  { name: '中級', grade: '上', sushiMoveTime: 4000, maxQuizNo: 10, maxAnswerNo: 3 },
+  { name: '上級', grade: '特上', sushiMoveTime: 3000, maxQuizNo: 20, maxAnswerNo: 4 },
 ]
+
+/**
+ * 壁に掛ける品書き (飾り)
+ * 答えのヒントにならないよう魚偏以外の品にする
+ */
+const WALL_MENU = ['玉子', 'いなり', 'お茶']
+
+/** 色 */
+const COLOR = {
+  /** 壁 (漆喰) */
+  wallTop: '#f7f0e1',
+  wallBottom: '#ecdfc4',
+  /** 梁 */
+  beam: '#5a3a1e',
+  /** のれん (藍) */
+  noren: '#22386b',
+  norenDark: '#182a52',
+  /** 朱色 */
+  vermilion: '#c8381e',
+  /** 墨 */
+  ink: '#2a1a0c',
+}
 
 /**
  * ゲーム状態
@@ -42,6 +66,8 @@ type QuizItem = {
   answerNo: number
   /** 選択肢 */
   selection: string[]
+  /** 解答結果 (true:正解, false:不正解/時間切れ, undefined:未解答) */
+  result?: boolean
 }
 
 /**
@@ -85,10 +111,27 @@ export class SakanaHen {
    */
   CANVAS_HEIGHT = 500
 
-  /** 回答ボタンの行間 */
-  ANSWER_ROW_GAP = 14
-  /** 回答ボタン領域の上下余白 */
-  ANSWER_AREA_PADDING = 12
+  //----------
+  // ゲーム画面レイアウト (論理座標)
+  //----------
+  /** くーまん表示位置(上端) */
+  KUMAN_Y = 88
+  /** テーブル(table.svg)表示位置(上端) */
+  TABLE_Y = 220
+  /** table.svg 内の寿司レーン(ベルト)の上端と高さ */
+  LANE_OFFSET = 68
+  LANE_HEIGHT = 30
+  /** table.svg 内のヒノキのカウンター上端 */
+  COUNTER_OFFSET = 114
+  /** ベルトの継ぎ目の間隔 */
+  BELT_SEGMENT = 26
+
+  /** 回答ボタン(品書き板)の高さ */
+  ANSWER_HEIGHT = 58
+  /** 回答ボタンの間隔 (縦横) */
+  ANSWER_GAP = 12
+  /** 回答ボタン領域の左右余白 */
+  ANSWER_SIDE_PADDING = 14
 
   /** 当たりはずれウェイト(mS) */
   HIT_WAIT_TIME = 1000
@@ -126,6 +169,26 @@ export class SakanaHen {
   rectLevels: Rectangle[] = []
   /** タイトル画面でマウスが乗っているレベル (-1:なし) */
   hoverLevel: number = -1
+  /** ゲーム画面でマウスが乗っている回答 (-1:なし) */
+  hoverAnswer: number = -1
+
+  //----------
+  // 結果画面
+  //----------
+  /** 皿を1枚積む間隔(mS) */
+  PLATE_INTERVAL = 110
+  /** 皿を積み終わってから判子を押すまでの時間(mS) */
+  STAMP_DELAY = 250
+  /** 判子を押す演出時間(mS) */
+  STAMP_DURATION = 350
+  /** 結果画面の表示開始時刻 (performance.now()) */
+  resultStartTime: number = 0
+  /** 結果画面のサウンドを鳴らしたか (判子を押すタイミングで鳴らす) */
+  resultSoundPlayed = false
+  /** 結果画面のボタン領域 (0:おかわり, 1:ごちそうさま) */
+  rectResultButtons: Rectangle[] = []
+  /** 結果画面でマウスが乗っているボタン (-1:なし) */
+  hoverResultButton: number = -1
 
   /** 画像リスト */
   image: {
@@ -404,20 +467,51 @@ export class SakanaHen {
       case 'title': {
         const level = this.hitNo(this.rectLevels, x, y)
         if (0 <= level) {
-          Log.info('開始 level:' + level)
-          // 開始サウンド再生中の多重クリックを防ぐ
-          this.state = 'starting'
-          this.canvas.style.cursor = 'default'
-          this.playSound('start', () => this.startGame(level))
+          this.requestStart(level)
         }
         break
       }
       case 'playing':
         this.checkAnswer(x, y)
         break
-      case 'result':
-        this.title()
+      case 'result': {
+        const button = this.hitNo(this.rectResultButtons, x, y)
+        if (button === 0) {
+          // おかわり: 同じ難易度でもう一度
+          this.requestStart(this.level)
+        } else if (button === 1) {
+          // ごちそうさま: タイトルへ
+          this.title()
+        } else {
+          // ボタン以外: 皿積み・判子の演出を飛ばす
+          this.resultStartTime = Math.min(this.resultStartTime, performance.now() - this.getResultAnimationTime())
+        }
         break
+      }
+    }
+  }
+
+  /**
+   * 開始サウンドを鳴らしてからゲームを開始する
+   *
+   * @param level レベル
+   */
+  requestStart(level: number) {
+    Log.info('開始 level:' + level)
+    this.stopAnimation()
+    // 開始サウンド再生中の多重クリックを防ぐ
+    this.state = 'starting'
+    this.canvas.style.cursor = 'default'
+    this.playSound('start', () => this.startGame(level))
+  }
+
+  /**
+   * 実行中のアニメーション(フレームループ)を停止する
+   */
+  stopAnimation() {
+    if (this.animationId !== undefined) {
+      cancelAnimationFrame(this.animationId)
+      this.animationId = undefined
     }
   }
 
@@ -441,7 +535,21 @@ export class SakanaHen {
       }
       case 'playing':
         rects = this.rectAnswers
+        // 描画は毎フレーム行われるので状態の更新のみ
+        this.hoverAnswer = this.hitNo(rects, x, y)
         break
+      case 'result': {
+        rects = this.rectResultButtons
+        const button = this.hitNo(rects, x, y)
+        if (button !== this.hoverResultButton) {
+          this.hoverResultButton = button
+          // 演出中はフレームループで描画されるので、演出後のみ再描画
+          if (this.animationId === undefined) {
+            this.drawResult()
+          }
+        }
+        break
+      }
     }
     this.canvas.style.cursor = this.hitNo(rects, x, y) < 0 ? 'default' : 'pointer'
   }
@@ -450,6 +558,7 @@ export class SakanaHen {
    * タイトル処理
    */
   title() {
+    this.stopAnimation()
     this.state = 'title'
     this.hoverLevel = -1
     this.canvas.style.cursor = 'default'
@@ -461,55 +570,131 @@ export class SakanaHen {
    * レベル選択領域 (rectLevels) もここで確定する
    */
   drawTitle() {
-    // 背景消去
-    this.ctx.clearRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
+    const ctx = this.ctx
+    const W = this.CANVAS_WIDTH
 
-    // 湯呑
-    this.ctx.drawImage(this.image.yunomi, (this.CANVAS_WIDTH - this.image.yunomi.width) / 2, (this.CANVAS_HEIGHT - this.image.yunomi.height) / 2)
+    // 壁
+    this.drawWall()
 
-    // 文字
-    this.ctx.font = '30px ' + FONT_SUSHI
-    const strTitle = '『さかなへん』クイズ'
-    const tmTitle = this.ctx.measureText(strTitle)
-    const titleWidth = tmTitle.width + 20
-    const titleHeight = 150
-    const posX = (this.CANVAS_WIDTH - titleWidth) / 2
-    const posY = (this.CANVAS_HEIGHT - titleHeight) / 2 - 10
+    //----------
+    // のれん
+    //----------
+    const norenTop = 10
+    const norenBottom = 172
+    const norenGrad = ctx.createLinearGradient(0, norenTop, 0, norenBottom)
+    norenGrad.addColorStop(0, COLOR.norenDark)
+    norenGrad.addColorStop(0.15, COLOR.noren)
+    norenGrad.addColorStop(1, COLOR.noren)
+    ctx.fillStyle = norenGrad
+    ctx.fillRect(12, norenTop, W - 24, norenBottom - norenTop)
+    // 布の切れ目 (3枚のれん)
+    ctx.fillStyle = COLOR.wallTop
+    for (const sx of [W / 3, (W * 2) / 3]) {
+      ctx.fillRect(sx - 1.5, 64, 3, norenBottom - 64)
+    }
+    // 竿
+    ctx.fillStyle = COLOR.beam
+    ctx.fillRect(0, 0, W, norenTop + 2)
 
-    this.ctx.fillStyle = 'rgba(0,255,0,0.6)'
-    this.ctx.fillRect(posX, posY, titleWidth, titleHeight)
-    this.ctx.fillStyle = 'rgb(255,255,255)'
-    this.ctx.beginPath()
-    this.ctx.strokeStyle = 'rgb(255,255,0)'
-    this.ctx.rect(posX, posY, titleWidth, titleHeight)
-    this.ctx.stroke()
-    this.ctx.fillStyle = 'rgb(255,0,0)'
-    this.ctx.fillText(strTitle, posX, posY + 30)
+    // 紋 (丸に魚)
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = 2.5
+    ctx.beginPath()
+    ctx.arc(W / 2, 42, 17, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.fillStyle = '#fff'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = 'bold 20px ' + FONT_SUSHI
+    ctx.fillText('魚', W / 2, 43)
 
-    // レベル
-    this.ctx.font = '30px ' + FONT_COMMON
-    this.ctx.shadowColor = '#555'
-    this.ctx.shadowOffsetX = 1
-    this.ctx.shadowOffsetY = 1
-    LEVEL_INFO.forEach((item, idx) => {
-      this.ctx.fillStyle = this.hoverLevel !== idx ? 'rgb(255,255,255)' : 'rgb(255,0,0)'
-      const strStart = item.name
-      const tmStart = this.ctx.measureText(strStart)
-      this.ctx.fillText(strStart, (this.CANVAS_WIDTH - tmStart.width) / 2, posY + 40 + 32 * (idx + 1))
+    // 屋号
+    ctx.font = 'bold 56px ' + FONT_SUSHI
+    ctx.fillText('さかなへん', W / 2, 106)
+    ctx.font = '22px ' + FONT_SUSHI
+    ctx.fillText('ク　イ　ズ', W / 2, 150)
+
+    //----------
+    // 品書き (難易度の木札)
+    //----------
+    // 木札を吊るす桟
+    const beamY = 204
+    drawWoodBoard(ctx, 30, beamY, W - 60, 9, WOOD_DARK, { radius: 3, shadow: 3, borderWidth: 1 })
+
+    const tagWidth = 84
+    const tagHeight = 188
+    const tagGap = 24
+    const tagTop = beamY + 26
+    const tagsLeft = (W - (tagWidth * LEVEL_INFO.length + tagGap * (LEVEL_INFO.length - 1))) / 2
+    this.rectLevels = LEVEL_INFO.map((item, idx) => {
+      const x = tagsLeft + (tagWidth + tagGap) * idx
+      const cx = x + tagWidth / 2
+      const active = this.hoverLevel === idx
+
+      // 吊り紐
+      ctx.strokeStyle = '#7a5a3a'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.moveTo(cx - 14, beamY + 8)
+      ctx.lineTo(cx, tagTop + 12)
+      ctx.lineTo(cx + 14, beamY + 8)
+      ctx.stroke()
+
+      // 木札
+      drawWoodBoard(ctx, x, tagTop, tagWidth, tagHeight, active ? WOOD_SELECTED : WOOD_LIGHT, {
+        radius: 4,
+        shadow: active ? 6 : 4,
+        borderWidth: active ? 3 : 2,
+        vertical: true,
+      })
+      // 紐を通す穴
+      ctx.fillStyle = '#5a3a1e'
+      ctx.beginPath()
+      ctx.arc(cx, tagTop + 12, 3, 0, Math.PI * 2)
+      ctx.fill()
+
+      // 格 (並・上・特上)
+      ctx.fillStyle = active ? COLOR.vermilion : COLOR.ink
+      ctx.font = 'bold 46px ' + FONT_SUSHI
+      drawVerticalText(ctx, item.grade, cx, tagTop + 28, 46)
+
+      // 難易度名 (朱色の札)
+      const labelW = 62
+      const labelH = 24
+      const labelY = tagTop + tagHeight - labelH - 14
+      ctx.fillStyle = COLOR.vermilion
+      ctx.fillRect(cx - labelW / 2, labelY, labelW, labelH)
+      ctx.fillStyle = '#fff'
+      ctx.font = 'bold 15px ' + FONT_COMMON
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(item.name, cx, labelY + labelH / 2 + 1)
+
+      return { x, y: tagTop, width: tagWidth, height: tagHeight }
     })
-    this.ctx.shadowColor = 'transparent'
-    this.ctx.shadowOffsetX = 0
-    this.ctx.shadowOffsetY = 0
 
-    // レベル選択領域
-    this.rectLevels = LEVEL_INFO.map((_, index) => {
-      return {
-        x: posX,
-        y: posY + 40 + 32 * index,
-        width: titleWidth,
-        height: 32,
-      }
-    })
+    // 案内
+    ctx.fillStyle = COLOR.ink
+    ctx.globalAlpha = 0.75
+    ctx.font = '17px ' + FONT_SUSHI
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('お好みの品をお選びください', W / 2, tagTop + tagHeight + 34)
+    ctx.globalAlpha = 1
+
+    ctx.textAlign = 'start'
+    ctx.textBaseline = 'alphabetic'
+  }
+
+  /**
+   * 壁 (背景) 描画
+   */
+  drawWall() {
+    const grad = this.ctx.createLinearGradient(0, 0, 0, this.CANVAS_HEIGHT)
+    grad.addColorStop(0, COLOR.wallTop)
+    grad.addColorStop(1, COLOR.wallBottom)
+    this.ctx.fillStyle = grad
+    this.ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
   }
 
   /**
@@ -520,6 +705,7 @@ export class SakanaHen {
     // 初期化処理
     //==============
     // レベル設定
+    this.level = level
     const levelInfo = LEVEL_INFO[level]
     this.sushiMoveTime = levelInfo.sushiMoveTime
     this.maxQuizNo = levelInfo.maxQuizNo
@@ -531,29 +717,30 @@ export class SakanaHen {
     //----------
     // 解答選択位置確定
     //----------
+    // 回答ボタン(品書き板)は2列で、ヒノキのカウンター上の上下中央に配置する
+    // 端数(3択の2行目など)は中央寄せ
     this.rectAnswers = []
-    const btnHeight = this.image.btn_0.height
-    const btnWidth = this.image.btn_0.width
-    const lineHeight = btnHeight + this.ANSWER_ROW_GAP
-
-    // 回答ボタンは画面下部に寄せて配置する (親指で押しやすいように)
     const maxCol = 2
     const maxRow = Math.ceil(this.maxAnswerNo / maxCol)
-    const startY = this.CANVAS_HEIGHT - this.ANSWER_AREA_PADDING - (maxRow * btnHeight + (maxRow - 1) * this.ANSWER_ROW_GAP)
-    let answerNo = 0
-    for (let row = 0; row < maxRow; row++) {
-      for (let col = 0; col < maxCol; col++) {
-        if (answerNo++ >= this.maxAnswerNo) {
-          break
-        }
-        this.rectAnswers.push({
-          x: col * btnWidth,
-          y: startY + lineHeight * row,
-          width: btnWidth,
-          height: btnHeight,
-        })
-      }
+    const btnWidth = (this.CANVAS_WIDTH - this.ANSWER_SIDE_PADDING * 2 - this.ANSWER_GAP * (maxCol - 1)) / maxCol
+    const btnHeight = this.ANSWER_HEIGHT
+    const counterTop = this.TABLE_Y + this.COUNTER_OFFSET
+    const blockHeight = maxRow * btnHeight + (maxRow - 1) * this.ANSWER_GAP
+    const startY = counterTop + (this.CANVAS_HEIGHT - counterTop - blockHeight) / 2
+    for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
+      const row = Math.floor(answerNo / maxCol)
+      const col = answerNo % maxCol
+      const colsInRow = Math.min(maxCol, this.maxAnswerNo - row * maxCol)
+      const rowWidth = colsInRow * btnWidth + (colsInRow - 1) * this.ANSWER_GAP
+      const rowLeft = (this.CANVAS_WIDTH - rowWidth) / 2
+      this.rectAnswers.push({
+        x: rowLeft + col * (btnWidth + this.ANSWER_GAP),
+        y: startY + row * (btnHeight + this.ANSWER_GAP),
+        width: btnWidth,
+        height: btnHeight,
+      })
     }
+    this.hoverAnswer = -1
     Log.info('rectAnswers', this.rectAnswers)
 
     //==============
@@ -651,6 +838,8 @@ export class SakanaHen {
    */
   setHit(bHit: boolean) {
     this.bHit = bHit
+    // 結果画面の伝票用に記録
+    this.listQuiz[this.quizNo].result = bHit
     if (bHit) {
       this.hitCount++
       this.playSound('seikai')
@@ -675,7 +864,8 @@ export class SakanaHen {
     this.update(delta)
 
     // 更新中にゲーム終了した場合は描画・次フレーム予約をしない
-    if (this.animationId === undefined) {
+    // (endGame() が結果画面の演出用に animationId を設定し直すため、animationId ではなく state で判定する)
+    if (this.state !== 'playing') {
       return
     }
     this.draw()
@@ -707,14 +897,9 @@ export class SakanaHen {
    * 描画処理
    */
   draw() {
-    /* グラデーション領域をセット */
-    const grad = this.ctx.createLinearGradient(0, 0, 0, this.CANVAS_HEIGHT)
-    /* グラデーション終点のオフセットと色をセット */
-    grad.addColorStop(0, '#fef9ed')
-    grad.addColorStop(0.5, 'rgb(255, 255, 255)')
-    /* グラデーションをfillStyleプロパティにセット */
-    this.ctx.fillStyle = grad
-    this.ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
+    // 壁と品書き
+    this.drawWall()
+    this.drawWallMenu()
 
     //----------
     // くーまん描画処理
@@ -725,89 +910,170 @@ export class SakanaHen {
     } else {
       imgKuman = this.image.kuman
     }
-    this.ctx.drawImage(imgKuman, (this.CANVAS_WIDTH - imgKuman.width) / 2, 48)
+    this.ctx.drawImage(imgKuman, (this.CANVAS_WIDTH - imgKuman.width) / 2, this.KUMAN_Y)
 
     // 帽子
     // boushi.svg は枠線が切れないよう上下左右に 1px の余白があるため、その分上にずらす
-    this.ctx.drawImage(this.image.boushi, (this.CANVAS_WIDTH - this.image.boushi.width) / 2, 34)
+    this.ctx.drawImage(this.image.boushi, (this.CANVAS_WIDTH - this.image.boushi.width) / 2, this.KUMAN_Y - 14)
 
     //----------
-    // テーブル
+    // テーブル (ネタケース・レーン・カウンター)
     //----------
-    this.ctx.drawImage(this.image.table, 0, 180)
+    this.ctx.drawImage(this.image.table, 0, this.TABLE_Y)
 
     //----------
     // 寿司＋さかなへん
-    //----------
-
-    //----------
-    // 背景色
     //----------
     const marginX = 84
     // 残り時間の割合 (1:右端 → 0:左端)
     const remainRate = Math.max(0, 1 - this.sushiElapsed / this.sushiMoveTime)
     const posX = (this.CANVAS_WIDTH + marginX * 2) * remainRate - marginX
-    const posY = 176
-    // 皿
-    this.ctx.drawImage(this.image.sara, posX - 24, posY)
 
-    // クイズ
+    // ベルトの継ぎ目 (皿と一緒に流れて見えるよう、皿の位置に合わせてずらす)
+    this.drawBelt(posX)
+
+    // 皿 (皿の底がレーンに乗る位置) と、その上に立てた漢字の木札
     const itemQuiz = this.listQuiz[this.quizNo]
-    const strQuiz = itemQuiz.quiz
-    this.ctx.font = '60px ' + FONT_SUSHI
-    this.ctx.strokeStyle = 'rgb(255,255,255)'
-    this.ctx.lineWidth = 4
-    this.ctx.strokeText(strQuiz, posX, posY + 55)
-    this.ctx.lineWidth = 1
-    this.ctx.fillStyle = 'rgb(0,0,0)'
-    this.ctx.fillText(strQuiz, posX, posY + 55)
+    this.drawQuizPlate(posX + 30, this.TABLE_Y + this.LANE_OFFSET + 22, itemQuiz.quiz)
 
     //----------
-    // 三択描画
+    // 回答 (品書き板)
     //----------
-    this.ctx.fillStyle = 'rgb(255,255,255)'
-    const answerAreaTop = this.rectAnswers[0].y - this.ANSWER_AREA_PADDING
-    this.ctx.fillRect(0, answerAreaTop, this.CANVAS_WIDTH, this.CANVAS_HEIGHT - answerAreaTop)
     for (let answerNo = 0; answerNo < this.maxAnswerNo; answerNo++) {
-      const posY = this.rectAnswers[answerNo].y
-      const posX = this.rectAnswers[answerNo].x
-      // ボタン描画
-      const btn = this.clickSelectionNo === answerNo ? this.image.btn_1 : this.image.btn_0
-      this.ctx.drawImage(btn, posX, posY)
+      const rect = this.rectAnswers[answerNo]
+      const selected = this.clickSelectionNo === answerNo
+      const hover = !selected && this.hoverAnswer === answerNo && !this.isHitEffect
+      // 選択中は押し込まれたように少し下げて影を小さくする
+      const offsetY = selected ? 2 : 0
+      drawWoodBoard(this.ctx, rect.x, rect.y + offsetY, rect.width, rect.height, selected ? WOOD_SELECTED : hover ? WOOD_HOVER : WOOD_LIGHT, {
+        radius: 6,
+        shadow: selected ? 1 : 4,
+        borderWidth: selected ? 3 : 2.5,
+      })
 
-      // 回答文字列
-      this.ctx.font = '40px ' + FONT_SUSHI
-      this.ctx.fillStyle = 'rgb(0,0,0)'
-      this.ctx.fillText(itemQuiz.selection[answerNo], posX + 4, posY + 40)
+      // 回答文字列 (板の中央に。長い場合は縮小)
+      const text = itemQuiz.selection[answerNo]
+      const size = fitFontSize(this.ctx, text, rect.width - 24, 34, FONT_SUSHI, 'bold')
+      this.ctx.font = `bold ${size}px ${FONT_SUSHI}`
+      this.ctx.fillStyle = selected ? COLOR.vermilion : COLOR.ink
+      this.ctx.textAlign = 'center'
+      this.ctx.textBaseline = 'middle'
+      this.ctx.fillText(text, rect.x + rect.width / 2, rect.y + offsetY + rect.height / 2 + 2)
+      this.ctx.textAlign = 'start'
+      this.ctx.textBaseline = 'alphabetic'
     }
 
     //----------
     // 当たり/はずれ
     //----------
     if (this.isHitEffect) {
-      this.ctx.font = 'bold 80px ' + FONT_SUSHI
       const imgAnswer = this.bHit ? this.image.ans_ok : this.image.ans_ng
       const easing = easeOutElastic(Math.min(this.hitElapsed, this.HIT_WAIT_TIME), 0, 100, this.HIT_WAIT_TIME)
-      const posY = 170 - (40 * easing) / 100
+      const posY = this.TABLE_Y - 10 - (40 * easing) / 100
       this.ctx.globalAlpha = easing / 100
       this.ctx.drawImage(imgAnswer, (this.CANVAS_WIDTH - imgAnswer.width) / 2, posY)
       this.ctx.globalAlpha = 1
     }
 
     //----------
-    // ステータス
+    // ステータス (壁に掛けた黒板)
     //----------
-    // 問題
-    const strQuizNo = '問題:' + (this.quizNo + 1) + '/' + this.listQuiz.length
-    this.ctx.font = '30px ' + FONT_COMMON
-    this.ctx.fillStyle = 'rgb(0,0,0)'
-    const tm = this.ctx.measureText(strQuizNo)
-    const statusPosX = this.CANVAS_WIDTH - tm.width
-    this.ctx.fillText(strQuizNo, statusPosX, 30)
+    this.drawStatusBoard()
+  }
 
-    // 正解数
-    const strScore = '正解:' + this.hitCount
-    this.ctx.fillText(strScore, statusPosX, 60)
+  /**
+   * 壁の品書き (飾り) 描画
+   */
+  drawWallMenu() {
+    const ctx = this.ctx
+    // 梁
+    ctx.fillStyle = COLOR.beam
+    ctx.fillRect(0, 0, this.CANVAS_WIDTH, 8)
+
+    // 木札
+    const tagWidth = 30
+    const tagHeight = 76
+    WALL_MENU.forEach((name, idx) => {
+      const x = 14 + idx * (tagWidth + 8)
+      const y = 16
+      ctx.strokeStyle = '#8a6a4a'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(x + tagWidth / 2, 8)
+      ctx.lineTo(x + tagWidth / 2, y + 4)
+      ctx.stroke()
+      drawWoodBoard(ctx, x, y, tagWidth, tagHeight, WOOD_LIGHT, { radius: 2, shadow: 2, borderWidth: 1.5, vertical: true })
+      ctx.fillStyle = COLOR.ink
+      ctx.font = 'bold 15px ' + FONT_SUSHI
+      drawVerticalText(ctx, name, x + tagWidth / 2, y + 8, 15)
+    })
+  }
+
+  /**
+   * ステータス (問題数・正解数) 描画
+   */
+  drawStatusBoard() {
+    const ctx = this.ctx
+    const w = 102
+    const h = 60
+    const x = this.CANVAS_WIDTH - w - 12
+    const y = 16
+    ctx.strokeStyle = '#8a6a4a'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(x + 18, 8)
+    ctx.lineTo(x + 18, y + 2)
+    ctx.moveTo(x + w - 18, 8)
+    ctx.lineTo(x + w - 18, y + 2)
+    ctx.stroke()
+    drawWoodBoard(ctx, x, y, w, h, WOOD_DARK, { radius: 4, shadow: 3, borderWidth: 2 })
+
+    ctx.fillStyle = '#f7eedb'
+    ctx.textBaseline = 'middle'
+    ctx.font = '15px ' + FONT_COMMON
+    ctx.textAlign = 'left'
+    ctx.fillText('問題', x + 10, y + 19)
+    ctx.fillText('正解', x + 10, y + 42)
+    ctx.font = 'bold 18px ' + FONT_COMMON
+    ctx.textAlign = 'right'
+    ctx.fillText(`${this.quizNo + 1}/${this.listQuiz.length}`, x + w - 10, y + 19)
+    ctx.fillStyle = '#ffd36b'
+    ctx.fillText(`${this.hitCount}`, x + w - 10, y + 42)
+    ctx.textAlign = 'start'
+    ctx.textBaseline = 'alphabetic'
+  }
+
+  /**
+   * 寿司レーンのベルトの継ぎ目を描画
+   *
+   * @param plateX 皿のX座標 (継ぎ目を皿と同じ速さで動かすため)
+   */
+  drawBelt(plateX: number) {
+    const ctx = this.ctx
+    const top = this.TABLE_Y + this.LANE_OFFSET
+    const h = this.LANE_HEIGHT
+    const seg = this.BELT_SEGMENT
+    const offset = ((plateX % seg) + seg) % seg
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, top, this.CANVAS_WIDTH, h)
+    ctx.clip()
+    for (let x = offset - seg; x < this.CANVAS_WIDTH + seg; x += seg) {
+      // 三日月形のプレートの継ぎ目
+      ctx.beginPath()
+      ctx.moveTo(x, top)
+      ctx.quadraticCurveTo(x + 9, top + h / 2, x, top + h)
+      ctx.strokeStyle = 'rgba(105, 55, 15, 0.55)'
+      ctx.lineWidth = 2
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(x + 2.5, top)
+      ctx.quadraticCurveTo(x + 11.5, top + h / 2, x + 2.5, top + h)
+      ctx.strokeStyle = 'rgba(255, 235, 200, 0.45)'
+      ctx.lineWidth = 1.2
+      ctx.stroke()
+    }
+    ctx.restore()
   }
 
   /**
@@ -815,22 +1081,52 @@ export class SakanaHen {
    */
   endGame() {
     // フレームループ停止
-    if (this.animationId !== undefined) {
-      cancelAnimationFrame(this.animationId)
-      this.animationId = undefined
-    }
+    this.stopAnimation()
     this.isHitEffect = false
 
-    // 結果画面へ (クリックでタイトルへ戻る処理は onClick で行う)
+    // 結果画面へ (ボタンのクリック処理は onClick で行う)
     this.state = 'result'
+    this.hoverResultButton = -1
     // マウスカーソルリセット
     this.canvas.style.cursor = 'default'
 
-    // サウンド
-    this.playSound(this.getResultInfo().sound)
+    // 皿積み・判子の演出開始 (サウンドは判子を押すときに resultFrame() で鳴らす)
+    this.resultStartTime = performance.now()
+    this.resultSoundPlayed = false
+    this.resultFrame()
+  }
 
-    // ゲームオーバー画面描画
+  /**
+   * 結果画面のフレーム処理 (演出が終わるまで描画を繰り返す)
+   */
+  resultFrame = () => {
+    this.animationId = undefined
+    if (this.state !== 'result') {
+      return
+    }
     this.drawResult()
+    const elapsed = performance.now() - this.resultStartTime
+    if (!this.resultSoundPlayed && this.getStampTime() <= elapsed) {
+      this.resultSoundPlayed = true
+      this.playSound(this.getResultInfo().sound)
+    }
+    if (elapsed < this.getResultAnimationTime()) {
+      this.animationId = requestAnimationFrame(this.resultFrame)
+    }
+  }
+
+  /**
+   * 結果画面の演出全体の時間(mS)
+   */
+  getResultAnimationTime() {
+    return this.getStampTime() + this.STAMP_DURATION
+  }
+
+  /**
+   * 結果画面で判子を押し始める時間(mS)
+   */
+  getStampTime() {
+    return this.hitCount * this.PLATE_INTERVAL + this.STAMP_DELAY
   }
 
   /**
@@ -839,48 +1135,342 @@ export class SakanaHen {
   getResultInfo() {
     const score = Math.round((this.hitCount / this.listQuiz.length) * 100)
     // RESULT_INFO は正解率の降順。末尾(0%)は必ず一致するが、念のため末尾をフォールバックにする
-    const [, message, sound] = RESULT_INFO.find(([percent]) => percent <= score) ?? RESULT_INFO[RESULT_INFO.length - 1]
-    return { score, message, sound }
+    const [, stamp, message, sound] = RESULT_INFO.find(([percent]) => percent <= score) ?? RESULT_INFO[RESULT_INFO.length - 1]
+    return { score, stamp, message, sound }
   }
 
   /**
-   * 結果画面描画
+   * 結果画面描画 (お会計)
+   * 左: 伝票 (間違えた品・皿の枚数・判子)、右: くーまん・積み上がる皿、下: ボタン
    */
   drawResult() {
-    const { score: result, message: strResult } = this.getResultInfo()
+    const ctx = this.ctx
+    const W = this.CANVAS_WIDTH
+    const info = this.getResultInfo()
+    const elapsed = performance.now() - this.resultStartTime
 
-    // 背景クリア
-    this.ctx.clearRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT)
+    // 壁と梁
+    this.drawWall()
+    ctx.fillStyle = COLOR.beam
+    ctx.fillRect(0, 0, W, 8)
 
-    const posY = this.CANVAS_HEIGHT / 4
+    // カウンター (table.svg のカウンター部分だけを使う)
+    const counterY = 400
+    const srcY = this.COUNTER_OFFSET - 8
+    ctx.drawImage(this.image.table, 0, srcY, W, this.CANVAS_HEIGHT - counterY, 0, counterY, W, this.CANVAS_HEIGHT - counterY)
 
-    // 文字
-    this.ctx.font = '30px ' + FONT_COMMON
-    const strTitle = 'ゲームオーバー'
-    let tm = this.ctx.measureText(strTitle)
-    let posX = (this.CANVAS_WIDTH - tm.width) / 2
-    this.ctx.fillStyle = 'rgb(255,0,0)'
-    this.ctx.fillText(strTitle, posX, posY)
+    //----------
+    // くーまん (成績で表情を変える)
+    //----------
+    const kumanImage = 70 <= info.score ? this.image.kuman_ok : info.score < 40 ? this.image.kuman_ng : this.image.kuman
+    // ゲーム画面と同じく胸から上だけを見せ、小さな付け台越しに顔を出しているように描く
+    const scale = 0.6
+    const colCenter = 324
+    const kumanY = 30
+    const visibleHeight = this.TABLE_Y - this.KUMAN_Y
+    ctx.drawImage(
+      kumanImage,
+      0,
+      0,
+      kumanImage.width,
+      visibleHeight,
+      colCenter - (kumanImage.width * scale) / 2,
+      kumanY,
+      kumanImage.width * scale,
+      visibleHeight * scale,
+    )
+    const hat = this.image.boushi
+    ctx.drawImage(hat, colCenter - (hat.width * scale) / 2, kumanY - 14 * scale, hat.width * scale, hat.height * scale)
+    const standY = kumanY + visibleHeight * scale - 4
+    drawWoodBoard(ctx, colCenter - 70, standY, 140, 12, WOOD_LIGHT, { radius: 2, shadow: 3, borderWidth: 1.5 })
+    this.drawSpeechBubble(info.message, colCenter, standY + 26)
 
-    // 正解数
-    // const strScore = '正解:' + this.hitCount + '/' + this.listQuiz.length
-    const strScore = `正解: ${result}点`
-    tm = this.ctx.measureText(strScore)
-    posX = (this.CANVAS_WIDTH - tm.width) / 2
-    this.ctx.fillText(strScore, posX, posY + 30)
+    //----------
+    // 積み上がる皿
+    //----------
+    const plateStep = 9
+    const progress = elapsed / this.PLATE_INTERVAL
+    const stacked = Math.min(this.hitCount, Math.floor(progress))
+    for (let i = 0; i < stacked; i++) {
+      this.drawPlate(colCenter, counterY + 4 - i * plateStep, i === 0)
+    }
+    // 落ちてくる途中の皿
+    if (stacked < this.hitCount) {
+      const t = progress - Math.floor(progress)
+      ctx.globalAlpha = t
+      this.drawPlate(colCenter, counterY + 4 - stacked * plateStep - (1 - t) * 26, stacked === 0)
+      ctx.globalAlpha = 1
+    }
 
-    // 結果
-    tm = this.ctx.measureText(strResult)
-    posX = (this.CANVAS_WIDTH - tm.width) / 2
-    this.ctx.fillStyle = 'rgb(0,60,0)'
-    this.ctx.fillText(strResult, posX, posY + 64)
+    //----------
+    // 伝票
+    //----------
+    this.drawReceipt(info, elapsed)
 
-    // クリック
-    this.ctx.font = '20px ' + FONT_COMMON
-    this.ctx.fillStyle = 'rgb(0,0,0)'
-    const strStart = '画面' + (this.isTouchDevice() ? 'タップ' : 'クリック') + 'でタイトルへ'
-    tm = this.ctx.measureText(strStart)
-    this.ctx.fillText(strStart, (this.CANVAS_WIDTH - tm.width) / 2, posY + 108)
+    //----------
+    // ボタン (おかわり / ごちそうさま)
+    //----------
+    const labels = ['おかわり', 'ごちそうさま']
+    const btnWidth = (W - this.ANSWER_SIDE_PADDING * 2 - this.ANSWER_GAP) / 2
+    const btnHeight = 54
+    const btnY = counterY + 8 + (this.CANVAS_HEIGHT - counterY - 8 - btnHeight) / 2
+    this.rectResultButtons = labels.map((label, idx) => {
+      const rect = { x: this.ANSWER_SIDE_PADDING + idx * (btnWidth + this.ANSWER_GAP), y: btnY, width: btnWidth, height: btnHeight }
+      const hover = this.hoverResultButton === idx
+      drawWoodBoard(ctx, rect.x, rect.y, rect.width, rect.height, hover ? WOOD_HOVER : WOOD_LIGHT, { radius: 6 })
+      const size = fitFontSize(ctx, label, rect.width - 24, 28, FONT_SUSHI, 'bold')
+      ctx.font = `bold ${size}px ${FONT_SUSHI}`
+      ctx.fillStyle = COLOR.ink
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(label, rect.x + rect.width / 2, rect.y + rect.height / 2 + 2)
+      return rect
+    })
+    ctx.textAlign = 'start'
+    ctx.textBaseline = 'alphabetic'
+  }
+
+  /**
+   * 伝票 (お会計) 描画
+   *
+   * @param info 結果情報
+   * @param elapsed 結果画面表示からの経過時間(mS)
+   */
+  drawReceipt(info: { score: number; stamp: string }, elapsed: number) {
+    const ctx = this.ctx
+    const x = 14
+    const y = 18
+    const w = 232
+    const h = 368
+    const left = x + 16
+    const right = x + w - 16
+    const center = x + w / 2
+
+    // 紙
+    ctx.save()
+    ctx.shadowColor = 'rgba(70, 35, 5, 0.3)'
+    ctx.shadowBlur = 6
+    ctx.shadowOffsetY = 3
+    ctx.fillStyle = '#fffdf6'
+    ctx.fillRect(x, y, w, h)
+    ctx.restore()
+
+    ctx.textBaseline = 'middle'
+
+    // 見出し
+    ctx.fillStyle = COLOR.ink
+    ctx.textAlign = 'center'
+    ctx.font = 'bold 26px ' + FONT_SUSHI
+    ctx.fillText('御 会 計', center, y + 32)
+    ctx.fillStyle = COLOR.vermilion
+    ctx.fillRect(left, y + 52, right - left, 2)
+    ctx.fillRect(left, y + 57, right - left, 1)
+
+    // コース (難易度)
+    const level = LEVEL_INFO[this.level]
+    ctx.fillStyle = COLOR.ink
+    ctx.font = '15px ' + FONT_SUSHI
+    ctx.fillText(`${level.grade}（${level.name}）　${this.listQuiz.length}品`, center, y + 76)
+
+    //----------
+    // 明細 (間違えた品だけ)
+    //----------
+    const misses = this.listQuiz.filter((item) => item.result !== true)
+    const bodyTop = y + 98
+    if (misses.length === 0) {
+      ctx.fillStyle = COLOR.vermilion
+      ctx.font = 'bold 34px ' + FONT_SUSHI
+      ctx.fillText('全問正解', center, bodyTop + 72)
+      ctx.fillStyle = COLOR.ink
+      ctx.font = '16px ' + FONT_SUSHI
+      ctx.fillText('おみごと！', center, bodyTop + 112)
+    } else {
+      // 何度も挑戦してもらうため、読み(正解)は出さずに漢字だけを並べる
+      ctx.textAlign = 'left'
+      ctx.fillStyle = COLOR.vermilion
+      ctx.font = 'bold 13px ' + FONT_COMMON
+      ctx.fillText('まちがえた品', left, bodyTop)
+
+      // 6列 × 4行 (上級の最大20問が収まる)。入りきらない場合は最後のマスを「他n」にする
+      const cols = 6
+      const rows = 4
+      const cell = (right - left) / cols
+      const rowHeight = 32
+      const maxItems = cols * rows
+      const shown = misses.length <= maxItems ? misses : misses.slice(0, maxItems - 1)
+      ctx.textAlign = 'center'
+      shown.forEach((item, idx) => {
+        const cx = left + (idx % cols) * cell + cell / 2
+        const cy = bodyTop + 30 + Math.floor(idx / cols) * rowHeight
+        ctx.fillStyle = COLOR.ink
+        ctx.font = 'bold 24px ' + FONT_SUSHI
+        ctx.fillText(item.quiz, cx, cy)
+      })
+      if (shown.length < misses.length) {
+        const idx = maxItems - 1
+        ctx.font = '13px ' + FONT_SUSHI
+        ctx.fillText(`他${misses.length - shown.length}`, left + (idx % cols) * cell + cell / 2, bodyTop + 30 + Math.floor(idx / cols) * rowHeight)
+      }
+
+      // 再挑戦の案内 (並べた品のすぐ下)
+      const usedRows = Math.ceil(Math.min(misses.length, maxItems) / cols)
+      ctx.fillStyle = COLOR.ink
+      ctx.globalAlpha = 0.7
+      ctx.font = '13px ' + FONT_SUSHI
+      ctx.fillText('読みは「おかわり」で確かめよう', center, bodyTop + 30 + usedRows * rowHeight + 4)
+      ctx.globalAlpha = 1
+    }
+
+    //----------
+    // 合計
+    //----------
+    const footerTop = y + h - 78
+    ctx.strokeStyle = '#b9a88a'
+    ctx.lineWidth = 1
+    ctx.setLineDash([4, 3])
+    ctx.beginPath()
+    ctx.moveTo(left, footerTop)
+    ctx.lineTo(right, footerTop)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    const valueLeft = left + 56
+    ctx.fillStyle = COLOR.ink
+    ctx.textAlign = 'left'
+    ctx.font = '15px ' + FONT_SUSHI
+    ctx.fillText('お皿', left, footerTop + 24)
+    ctx.fillText('正解率', left, footerTop + 54)
+    // 「6 / 10皿」: 枚数を大きく、分母と単位を小さく続けて書く
+    ctx.font = 'bold 22px ' + FONT_COMMON
+    const countText = `${this.hitCount}`
+    ctx.fillText(countText, valueLeft, footerTop + 24)
+    const countWidth = ctx.measureText(countText).width
+    ctx.font = '14px ' + FONT_COMMON
+    ctx.fillText(` / ${this.listQuiz.length}皿`, valueLeft + countWidth + 2, footerTop + 26)
+    ctx.font = 'bold 18px ' + FONT_COMMON
+    ctx.fillText(`${info.score}%`, valueLeft, footerTop + 54)
+
+    //----------
+    // 判子 (皿を積み終わったら押す)
+    //----------
+    const stampElapsed = elapsed - this.getStampTime()
+    if (0 <= stampElapsed) {
+      const p = Math.min(1, stampElapsed / this.STAMP_DURATION)
+      // 大きく薄い状態から、押し付けたように縮んで濃くなる
+      const scale = 1 + (1 - p) * (1 - p) * 1.5
+      this.drawStamp(info.stamp, right - 30, footerTop + 40, 32 * scale, 0.9 * p)
+    }
+
+    ctx.textAlign = 'start'
+    ctx.textBaseline = 'alphabetic'
+  }
+
+  /**
+   * 判子 (朱色の丸印) 描画
+   *
+   * @param text 文字
+   * @param cx 中心X
+   * @param cy 中心Y
+   * @param r 半径
+   * @param alpha 不透明度
+   */
+  drawStamp(text: string, cx: number, cy: number, r: number, alpha: number) {
+    const ctx = this.ctx
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.translate(cx, cy)
+    ctx.rotate(-0.2)
+    ctx.strokeStyle = COLOR.vermilion
+    ctx.lineWidth = r * 0.09
+    ctx.beginPath()
+    ctx.arc(0, 0, r, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.lineWidth = r * 0.04
+    ctx.beginPath()
+    ctx.arc(0, 0, r * 0.84, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.fillStyle = COLOR.vermilion
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const size = fitFontSize(ctx, text, r * 1.45, r * 0.95, FONT_SUSHI, 'bold')
+    ctx.font = `bold ${size}px ${FONT_SUSHI}`
+    ctx.fillText(text, 0, r * 0.04)
+    ctx.restore()
+  }
+
+  /**
+   * 皿 (横から見た寿司皿) 描画
+   *
+   * @param cx 中心X
+   * @param bottom 皿の底のY座標
+   * @param shadow 落ち影を描くか (積み重ねた皿の2枚目以降は不要)
+   */
+  drawPlate(cx: number, bottom: number, shadow = true) {
+    drawSushiPlate(this.ctx, cx, bottom, 46, shadow)
+  }
+
+  /**
+   * 問題の皿 (皿＋漢字の木札) 描画
+   *
+   * @param cx 中心X座標
+   * @param bottom 皿の底のY座標
+   * @param quiz 問題の漢字
+   */
+  drawQuizPlate(cx: number, bottom: number, quiz: string) {
+    const ctx = this.ctx
+    const plateTop = drawSushiPlate(ctx, cx, bottom, 50)
+    // 札立て (黒塗りの台)
+    drawWoodBoard(ctx, cx - 20, plateTop - 9, 40, 9, WOOD_DARK, { radius: 2, shadow: 0, borderWidth: 1 })
+    // 漢字の木札
+    const w = 76
+    const h = 72
+    const top = plateTop - 6 - h
+    drawWoodBoard(ctx, cx - w / 2, top, w, h, WOOD_LIGHT, { radius: 4, shadow: 3, borderWidth: 2, vertical: true })
+    ctx.font = '58px ' + FONT_SUSHI
+    ctx.fillStyle = COLOR.ink
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(quiz, cx, top + h / 2 + 2)
+    ctx.textAlign = 'start'
+    ctx.textBaseline = 'alphabetic'
+  }
+
+  /**
+   * 吹き出し描画 (上向きのしっぽ付き)
+   *
+   * @param text 文字
+   * @param cx 中心X
+   * @param top 上端Y
+   */
+  drawSpeechBubble(text: string, cx: number, top: number) {
+    const ctx = this.ctx
+    const w = 136
+    const h = 30
+    const x = Math.min(cx - w / 2, this.CANVAS_WIDTH - w - 4)
+    ctx.save()
+    ctx.shadowColor = 'rgba(70, 35, 5, 0.25)'
+    ctx.shadowBlur = 4
+    ctx.shadowOffsetY = 2
+    ctx.fillStyle = '#ffffff'
+    ctx.beginPath()
+    ctx.moveTo(cx - 8, top + 1)
+    ctx.lineTo(cx, top - 9)
+    ctx.lineTo(cx + 8, top + 1)
+    ctx.closePath()
+    ctx.fill()
+    // ctx.roundRect は古い Safari に無いため自前のパスを使う
+    roundRectPath(ctx, x, top, w, h, 10)
+    ctx.fill()
+    ctx.restore()
+
+    ctx.fillStyle = COLOR.ink
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    const size = fitFontSize(ctx, text, w - 14, 15, FONT_SUSHI, 'bold')
+    ctx.font = `bold ${size}px ${FONT_SUSHI}`
+    ctx.fillText(text, x + w / 2, top + h / 2 + 1)
+    ctx.textAlign = 'start'
+    ctx.textBaseline = 'alphabetic'
   }
 
   /**
@@ -891,14 +1481,6 @@ export class SakanaHen {
    */
   playSound(id: string, endFunc?: () => void) {
     this.soundPlayer.play(id, endFunc)
-  }
-
-  /**
-   * タッチ操作が主の端末か判断
-   * UA 判定では iPadOS (Mac として名乗る) を判別できないため、ポインターの種類で判断する
-   */
-  isTouchDevice() {
-    return window.matchMedia?.('(pointer: coarse)').matches ?? false
   }
 }
 

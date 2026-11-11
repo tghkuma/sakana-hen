@@ -1,195 +1,152 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  回転寿司カウンター (上から ネタケース / 寿司レーン / ヒノキのカウンター)
+    y   0- 60 : ネタケース (氷の上にネタ、ガラス越し)
+    y  60- 68 : ステンレス縁 (奥)
+    y  68- 98 : 寿司レーン (ベルト。継ぎ目は動きを出すためスクリプトで描画)
+    y  98-106 : ステンレス縁 (手前)
+    y 106-114 : カウンター手前の縁
+    y 114-304 : ヒノキのカウンター (キャンバス下端まで伸ばして使う)
+-->
+<svg width="400" height="304" viewBox="0 0 400 304" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- ネタケース内部 -->
+    <linearGradient id="caseInner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9e4e2"/>
+      <stop offset="1" stop-color="#b9c9c6"/>
+    </linearGradient>
+    <!-- 氷 -->
+    <linearGradient id="ice" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dcebf0"/>
+    </linearGradient>
+    <!-- ガラス -->
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e8fbff" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#c8eef7" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#bfe9f4" stop-opacity="0.35"/>
+    </linearGradient>
+    <!-- ステンレス -->
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4f6f7"/>
+      <stop offset="0.45" stop-color="#c3c9cc"/>
+      <stop offset="0.55" stop-color="#9aa2a6"/>
+      <stop offset="1" stop-color="#d9dee0"/>
+    </linearGradient>
+    <!-- ベルト -->
+    <linearGradient id="belt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b8743a"/>
+      <stop offset="0.25" stop-color="#e2ad6e"/>
+      <stop offset="0.75" stop-color="#d89b57"/>
+      <stop offset="1" stop-color="#a9662f"/>
+    </linearGradient>
+    <!-- カウンター手前の縁 -->
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6e2bc"/>
+      <stop offset="1" stop-color="#cfa76c"/>
+    </linearGradient>
+    <!-- ヒノキ -->
+    <linearGradient id="hinoki" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f3dfb6"/>
+      <stop offset="1" stop-color="#ead09c"/>
+    </linearGradient>
 
-<svg
-   width="400"
-   height="181.66353"
-   viewBox="0 0 105.83333 48.06514"
-   version="1.1"
-   id="svg1"
-   inkscape:version="1.3.2 (091e20e, 2023-11-25, custom)"
-   sodipodi:docname="table.svg"
-   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
-   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
-   xmlns:xlink="http://www.w3.org/1999/xlink"
-   xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
-  <sodipodi:namedview
-     id="namedview1"
-     pagecolor="#ffffff"
-     bordercolor="#000000"
-     borderopacity="0.25"
-     inkscape:showpageshadow="2"
-     inkscape:pageopacity="0.0"
-     inkscape:pagecheckerboard="true"
-     inkscape:deskcolor="#d1d1d1"
-     inkscape:document-units="px"
-     inkscape:zoom="2.3233446"
-     inkscape:cx="263.41336"
-     inkscape:cy="68.00541"
-     inkscape:window-width="1440"
-     inkscape:window-height="890"
-     inkscape:window-x="-6"
-     inkscape:window-y="-6"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="g2" />
-  <defs
-     id="defs1">
-    <linearGradient
-       id="linearGradient1"
-       inkscape:collect="always">
-      <stop
-         style="stop-color:#000000;stop-opacity:1;"
-         offset="0"
-         id="stop10" />
-      <stop
-         style="stop-color:#000000;stop-opacity:0;"
-         offset="1"
-         id="stop11" />
-    </linearGradient>
-    <linearGradient
-       id="b"
-       gradientUnits="userSpaceOnUse"
-       x2="1"
-       gradientTransform="matrix(109.95,-268.47449,25.2,43.667069,160.275,187.59595)">
-      <stop
-         offset="0%"
-         stop-color="#B4FFFF"
-         id="stop5" />
-      <stop
-         offset="72.157%"
-         stop-color="#FFF"
-         id="stop6" />
-      <stop
-         offset="100%"
-         stop-color="#B4FFFF"
-         id="stop7" />
-    </linearGradient>
-    <radialGradient
-       id="c"
-       gradientUnits="userSpaceOnUse"
-       cx="0"
-       cy="0"
-       r="0.5"
-       gradientTransform="matrix(411.85147,0,0,441.225,200.025,70.613532)">
-      <stop
-         offset="0%"
-         stop-color="#FC6"
-         id="stop8" />
-      <stop
-         offset="100%"
-         stop-color="#FFF"
-         id="stop9" />
-    </radialGradient>
-    <linearGradient
-       id="a"
-       gradientUnits="userSpaceOnUse"
-       x1="0"
-       y1="195"
-       x2="400"
-       y2="195"
-       gradientTransform="translate(0,-128.33647)">
-      <stop
-         offset="6.667%"
-         stop-color="#999"
-         id="stop1" />
-      <stop
-         offset="26.667%"
-         stop-color="#666"
-         id="stop2" />
-      <stop
-         offset="72.157%"
-         stop-color="#FFF"
-         id="stop3" />
-      <stop
-         offset="100%"
-         stop-color="#999"
-         id="stop4" />
-    </linearGradient>
-    <linearGradient
-       inkscape:collect="always"
-       xlink:href="#linearGradient14"
-       id="linearGradient12"
-       x1="248.77928"
-       y1="-0.57155365"
-       x2="248.77928"
-       y2="11.049624"
-       gradientUnits="userSpaceOnUse"
-       gradientTransform="scale(1,2.9999999)" />
-    <linearGradient
-       id="linearGradient14"
-       gradientUnits="userSpaceOnUse"
-       x2="1"
-       gradientTransform="matrix(109.95,-268.47449,25.2,43.667069,160.275,187.59595)">
-      <stop
-         offset="0.2"
-         stop-color="#B4FFFF"
-         id="stop12"
-         style="stop-color:#000100;stop-opacity:0.05670103;" />
-      <stop
-         offset="0.71504414"
-         stop-color="#FFF"
-         id="stop13" />
-      <stop
-         offset="1"
-         stop-color="#B4FFFF"
-         id="stop14"
-         style="stop-color:#ffffff;stop-opacity:0;" />
-    </linearGradient>
-    <linearGradient
-       inkscape:collect="always"
-       xlink:href="#linearGradient1"
-       id="linearGradient11"
-       x1="225.10651"
-       y1="120.0855"
-       x2="225.10652"
-       y2="136.29776"
-       gradientUnits="userSpaceOnUse"
-       gradientTransform="matrix(0.99999999,0,0,1.5,0,-60.688495)" />
-  </defs>
-  <g
-     inkscape:label="Layer 1"
-     inkscape:groupmode="layer"
-     id="layer1">
-    <g
-       id="g2"
-       transform="scale(0.26458333)">
-      <path
-         d="m 0,111.66353 h 399.95 v 70 H 0 Z"
-         fill="#ffffcc"
-         style="stroke-width:1.17156"
-         id="path9" />
-      <path
-         d="M 399.94999,121.66353 H 0 v -20 h 399.99999 v 20 z"
-         fill="#999999"
-         id="path11"
-         style="fill:#e2b55a;fill-opacity:1;stroke-width:1.41421" />
-      <path
-         d="M 0,0.10047841 H 400 V 62.482005 H 0 Z"
-         fill="url(#b)"
-         style="fill:url(#b);stroke-width:1.24882"
-         id="path13" />
-      <path
-         d="M 0,71.663532 H 399.99999 V 101.66353 H 0 Z"
-         fill="url(#c)"
-         style="fill:url(#c);stroke-width:1.00006"
-         id="path14" />
-      <path
-         d="M 400,71.663532 H 0 v -10 h 400 z"
-         fill="url(#a)"
-         style="fill:url(#a)"
-         id="path12" />
-      <path
-         d="M 400,29.999999 H 0 V -6.220476e-8 h 400 z"
-         style="opacity:0.6;fill:url(#linearGradient12);fill-opacity:1;stroke-width:1.73205"
-         id="path3" />
-      <rect
-         style="opacity:0.6;fill:url(#linearGradient11);fill-opacity:1;stroke:#ffffff;stroke-width:0;stroke-dasharray:none"
-         id="rect1"
-         width="400"
-         height="30"
-         x="7.1054274e-15"
-         y="121.377" />
+    <!-- ネタ: まぐろ -->
+    <g id="maguro">
+      <rect x="0" y="0" width="30" height="13" rx="4" fill="#b81f35"/>
+      <path d="M5 2 L11 11 M13 2 L19 11 M21 2 L27 11" stroke="#d9505f" stroke-width="1.5" fill="none" stroke-linecap="round"/>
     </g>
+    <!-- ネタ: サーモン -->
+    <g id="salmon">
+      <rect x="0" y="0" width="30" height="13" rx="4" fill="#f2874a"/>
+      <path d="M4 2 L10 11 M11 2 L17 11 M18 2 L24 11 M25 2 L29 8" stroke="#fde1cc" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+    </g>
+    <!-- ネタ: 玉子 -->
+    <g id="tamago">
+      <rect x="0" y="0" width="30" height="13" rx="2" fill="#f2c935"/>
+      <rect x="1" y="1" width="28" height="4" rx="2" fill="#f9e27f"/>
+      <rect x="0" y="9" width="30" height="4" rx="1.5" fill="#d9a723"/>
+    </g>
+    <!-- ネタ: いか -->
+    <g id="ika">
+      <rect x="0" y="0" width="30" height="13" rx="4" fill="#f8f6f0"/>
+      <path d="M6 3 V10 M12 3 V10 M18 3 V10 M24 3 V10" stroke="#e3ded2" stroke-width="1.2"/>
+    </g>
+    <!-- ネタ: えび -->
+    <g id="ebi">
+      <path d="M1 7 Q8 -1 29 3 Q31 7 29 11 Q8 14 1 7 Z" fill="#f6efe6"/>
+      <path d="M7 3.5 V10.5 M13 2.5 V11.5 M19 2.5 V11.5 M25 3 V11" stroke="#f0653a" stroke-width="3"/>
+    </g>
+    <!-- ネタ: はまち -->
+    <g id="hamachi">
+      <rect x="0" y="0" width="30" height="13" rx="4" fill="#f4cdb7"/>
+      <rect x="0" y="0" width="30" height="4" rx="2" fill="#e49a87"/>
+    </g>
+    <!-- 仕切りのバラン -->
+    <path id="baran" d="M0 22 L3 0 L6 14 L9 2 L12 16 L15 4 L18 22 Z" fill="#2f9a4b"/>
+  </defs>
+
+  <!-- ===== ネタケース ===== -->
+  <rect x="0" y="0" width="400" height="60" fill="url(#caseInner)"/>
+  <!-- 奥の段 -->
+  <rect x="0" y="22" width="400" height="5" fill="#a9bbb7"/>
+  <!-- 氷 -->
+  <path d="M0 44 Q20 40 40 44 T80 44 T120 44 T160 44 T200 44 T240 44 T280 44 T320 44 T360 44 T400 44 V60 H0 Z" fill="url(#ice)"/>
+  <!-- ネタ (2切れずつ、バランで仕切る) -->
+  <g>
+    <use href="#baran" x="2" y="24"/>
+    <use href="#maguro" x="22" y="34" transform="rotate(-6 37 40)"/>
+    <use href="#maguro" x="28" y="30" transform="rotate(-6 43 36)"/>
+    <use href="#baran" x="64" y="24"/>
+    <use href="#salmon" x="84" y="34" transform="rotate(-6 99 40)"/>
+    <use href="#salmon" x="90" y="30" transform="rotate(-6 105 36)"/>
+    <use href="#baran" x="126" y="24"/>
+    <use href="#tamago" x="146" y="34"/>
+    <use href="#tamago" x="150" y="28"/>
+    <use href="#baran" x="188" y="24"/>
+    <use href="#ebi" x="208" y="34" transform="rotate(-6 223 40)"/>
+    <use href="#ebi" x="214" y="29" transform="rotate(-6 229 35)"/>
+    <use href="#baran" x="250" y="24"/>
+    <use href="#ika" x="270" y="34" transform="rotate(-6 285 40)"/>
+    <use href="#ika" x="276" y="30" transform="rotate(-6 291 36)"/>
+    <use href="#baran" x="312" y="24"/>
+    <use href="#hamachi" x="332" y="34" transform="rotate(-6 347 40)"/>
+    <use href="#hamachi" x="338" y="30" transform="rotate(-6 353 36)"/>
+    <use href="#baran" x="380" y="24"/>
+  </g>
+  <!-- ガラス (ネタが何となく見える程度に曇らせる) -->
+  <rect x="0" y="0" width="400" height="60" fill="url(#glass)"/>
+  <!-- ガラスの映り込み -->
+  <path d="M30 0 H62 L22 60 H-10 Z" fill="#ffffff" opacity="0.28"/>
+  <path d="M74 0 H84 L44 60 H34 Z" fill="#ffffff" opacity="0.22"/>
+  <path d="M230 0 H270 L230 60 H190 Z" fill="#ffffff" opacity="0.22"/>
+  <path d="M282 0 H290 L250 60 H242 Z" fill="#ffffff" opacity="0.18"/>
+  <!-- ケース上枠 -->
+  <rect x="0" y="0" width="400" height="3" fill="url(#steel)"/>
+
+  <!-- ===== 寿司レーン ===== -->
+  <rect x="0" y="60" width="400" height="8" fill="url(#steel)"/>
+  <rect x="0" y="68" width="400" height="30" fill="url(#belt)"/>
+  <!-- 奥の縁の影 -->
+  <rect x="0" y="68" width="400" height="4" fill="#5a3416" opacity="0.25"/>
+  <rect x="0" y="98" width="400" height="8" fill="url(#steel)"/>
+
+  <!-- ===== カウンター ===== -->
+  <rect x="0" y="106" width="400" height="8" fill="url(#edge)"/>
+  <rect x="0" y="114" width="400" height="190" fill="url(#hinoki)"/>
+  <!-- 縁の下の影 -->
+  <rect x="0" y="114" width="400" height="6" fill="#8a5a24" opacity="0.18"/>
+  <!-- ヒノキの木目 (細く淡い柾目) -->
+  <g fill="none" stroke="#c49a5c" stroke-linecap="round">
+    <path d="M0 128 C80 125 160 131 240 127 S360 124 400 129" stroke-width="1" opacity="0.35"/>
+    <path d="M0 141 C90 138 170 145 260 140 S370 137 400 142" stroke-width="1.4" opacity="0.25"/>
+    <path d="M0 157 C70 160 150 153 230 158 S350 161 400 156" stroke-width="1" opacity="0.3"/>
+    <path d="M0 176 C100 172 190 179 280 174 S370 172 400 176" stroke-width="1.6" opacity="0.2"/>
+    <path d="M0 193 C80 196 170 189 250 194 S360 197 400 192" stroke-width="1" opacity="0.3"/>
+    <path d="M0 214 C110 210 200 217 290 212 S370 210 400 214" stroke-width="1.3" opacity="0.22"/>
+    <path d="M0 234 C70 237 160 230 240 235 S350 238 400 233" stroke-width="1" opacity="0.28"/>
+    <path d="M0 257 C90 253 180 260 270 255 S370 253 400 257" stroke-width="1.5" opacity="0.2"/>
+    <path d="M0 279 C80 282 170 275 250 280 S360 283 400 278" stroke-width="1" opacity="0.28"/>
+    <path d="M0 298 C100 295 200 301 300 296 S380 295 400 298" stroke-width="1.2" opacity="0.22"/>
   </g>
 </svg>

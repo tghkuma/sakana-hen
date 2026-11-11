@@ -43,6 +43,8 @@ body {
 }
 body {
   margin: 0;
+  /** キャンバス外の余白は店の柱のような濃い木の色にする */
+  background-color: #3b2716;
   /** 長押しコピー禁止 */
   -webkit-user-select: none;
   user-select: none;
@@ -66,7 +68,7 @@ body {
   width: min(var(--safe-width), calc(var(--safe-height) * var(--canvas-aspect)), var(--canvas-max-width));
   height: auto;
   aspect-ratio: var(--canvas-aspect);
-  background-color: #fff0f0;
+  background-color: #f7f0e1;
   /** ダブルタップ・ピンチによる拡大やスクロールを抑止 (タップの click は発生する) */
   touch-action: none;
   /** 選択ハイライト禁止 */
